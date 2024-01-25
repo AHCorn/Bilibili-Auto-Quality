@@ -1,3 +1,5 @@
+<div align="center">
+
 #  ⚙ Bilibili-Auto-Quality
 
 ### **简体中文** / <a href="https://github.com/AHCorn/"> English </a> 
