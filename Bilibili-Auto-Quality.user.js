@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      2.0
+// @version      2.0.1
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质及无损音频。
 // @author       安和（AHCorn）
 // @icon         https://www.bilibili.com/favicon.ico
@@ -104,7 +104,7 @@
         }
 
         if (!qualityFound) {
-            userQualityIndex = Math.max(userQualityIndex, 0); 
+            userQualityIndex = Math.max(userQualityIndex, 0);
             while (userQualityIndex < qualityPreferences.length) {
                 const nextQuality = qualityPreferences[userQualityIndex++];
                 preferredQuality = Array.from(qualityItems).find(item => item.textContent.trim().startsWith(nextQuality) && (isVip || !item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
@@ -189,5 +189,23 @@
 
     GM_registerMenuCommand("设置画质和音质", toggleSettingsPanel);
 
-    setTimeout(selectQualityBasedOnSetting, 5000);
+const loadTime = window.performance.timing.loadEventEnd - window.performance.timing.navigationStart;
+
+const thresholds = [
+    { threshold: 3000, delay: 3000 },
+    { threshold: 5000, delay: 4000 },
+    { threshold: 8000, delay: 7000 }
+];
+
+let delay = 15000; // 默认等待15秒
+
+for (const threshold of thresholds) {
+    if (loadTime < threshold.threshold) {
+        delay = threshold.delay;
+        break;
+    }
+}
+
+setTimeout(selectQualityBasedOnSetting, delay);
+
 })();
