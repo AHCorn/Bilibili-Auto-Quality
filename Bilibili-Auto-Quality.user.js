@@ -189,5 +189,5 @@
 
     GM_registerMenuCommand("设置画质和音质", toggleSettingsPanel);
 
-    setTimeout(selectQualityBasedOnSetting, 3500);
+    setTimeout(selectQualityBasedOnSetting, 5000);
 })();
