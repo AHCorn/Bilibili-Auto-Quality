@@ -2,7 +2,7 @@
 
 #  ⚙ [Bilibili-Auto-Quality](https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js)
 
-### **简体中文** / <a href="https://github.com/AHCorn/"> English </a> 
+### **简体中文** / <a href="https://github.com/AHCorn/Bilibili-Auto-Quality/blob/main/README_EN.md"> English </a> 
 
 
 
