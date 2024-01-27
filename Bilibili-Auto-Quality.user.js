@@ -192,8 +192,8 @@
 const loadTime = window.performance.timing.loadEventEnd - window.performance.timing.navigationStart;
 
 const thresholds = [
-    { threshold: 3000, delay: 3000 },
-    { threshold: 5000, delay: 4000 },
+    { threshold: 3000, delay: 5000 },
+    { threshold: 5000, delay: 6000 },
     { threshold: 8000, delay: 7000 }
 ];
 
