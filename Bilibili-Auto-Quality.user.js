@@ -192,12 +192,13 @@
 const loadTime = window.performance.timing.loadEventEnd - window.performance.timing.navigationStart;
 
 const thresholds = [
-    { threshold: 3000, delay: 5000 },
-    { threshold: 5000, delay: 6000 },
-    { threshold: 8000, delay: 7000 }
+    { threshold: 3000, delay: 6000 },
+    { threshold: 4000, delay: 6500 },
+    { threshold: 5000, delay: 7000 },
+    { threshold: 8000, delay: 8000 }
 ];
 
-let delay = 15000; // 默认等待15秒
+let delay = 15000; // 默认等待15秒，目前还没想到比较好的方法来完成判断后加载...
 
 for (const threshold of thresholds) {
     if (loadTime < threshold.threshold) {
