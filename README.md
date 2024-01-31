@@ -29,6 +29,15 @@ Automatically unlock and select highest quality and lossless audio for Bilibili 
    
 4. 支持自动开关无损音频
 
+
+## 📝 待办
+| 🔔 未完成 | ✅ 已完成 |
+| -------- | -------- |
+|   适配直播页面       |  非大会员自动切换        |
+|   优化切换速度      |          |
+|   补充 720P 60帧 选项      |          |
+
+
 ## ❤ 感谢
 个人之前一直在使用 [Bilibili 视频默认选择最高清晰度](https://greasyfork.org/zh-CN/scripts/374770-bilibili-%E8%A7%86%E9%A2%91%E9%BB%98%E8%AE%A4%E9%80%89%E6%8B%A9%E6%9C%80%E9%AB%98%E6%B8%85%E6%99%B0%E5%BA%A6) 这个脚本，但因为找不到了所以才重新写的，相较这个脚本增添用户设置面板和对无损音频的自动设置。
 
