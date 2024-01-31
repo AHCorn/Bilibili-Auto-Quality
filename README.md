@@ -1,6 +1,6 @@
 <div align="center">
 
-#  ⚙ [Bilibili-Auto-Quality](https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js)
+#  ⚙ [Bilibili-Auto-Quality](https://greasyfork.org/zh-CN/scripts/486151-%E5%93%94%E5%93%A9%E5%93%94%E5%93%A9%E8%87%AA%E5%8A%A8%E7%94%BB%E8%B4%A8)
 
 ### **简体中文** / <a href="https://github.com/AHCorn/Bilibili-Auto-Quality/blob/main/README_EN.md"> English </a> 
 
