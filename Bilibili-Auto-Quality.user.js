@@ -19,7 +19,8 @@
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
-(function() {
+
+(function () {
     'use strict';
 
     Object.defineProperty(navigator, 'userAgent', {
@@ -28,41 +29,47 @@
 
     window.localStorage['bilibili_player_force_DolbyAtmos&8K&HDR'] = 1;
 
-    GM_addStyle(`#bilibili - quality - selector {
-        position: fixed;
-        top: 50 % ;
-        left: 50 % ;
-        transform: translate( - 50 % , -50 % );
-        background - color: #f8f8f8;
-        padding: 20px;
-        border - radius: 10px;
-        box - shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        display: none;
-        z - index: 10000;
-        width: 300px;
-        text - align: center;
-        border: 1px solid#ddd;
-    }#bilibili - quality - selector button {
-        display: block;
-        width: 90 % ;
-        margin: 5px auto;
-        padding: 10px;
-        border: 1px solid#007bff;
-        border - radius: 5px;
-        background - color: white;
-        color: #007bff;
-        cursor: pointer;
-        font - size: 16px;
-        transition: all 0.3s ease;
-    }#bilibili - quality - selector button.active {
-        background - color: #007bff;
-        color: white;
-    }#bilibili - quality - selector button: hover {
-        background - color: #0056b3;
-        color: white;
-    }#bilibili - quality - selector button.active: hover {
-        background - color: #003f7f;
-    }`);
+    GM_addStyle(`
+        #bilibili-quality-selector {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #f8f8f8;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 10000;
+            width: 300px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        #bilibili-quality-selector button {
+            display: block;
+            width: 90%;
+            margin: 5px auto;
+            padding: 10px;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            background-color: white;
+            color: #007bff;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        #bilibili-quality-selector button.active {
+            background-color: #007bff;
+            color: white;
+        }
+        #bilibili-quality-selector button:hover {
+            background-color: #0056b3;
+            color: white;
+        }
+        #bilibili-quality-selector button.active:hover {
+            background-color: #003f7f;
+        }
+    `);
 
     let hiResAudioEnabled = GM_getValue('hiResAudio', false);
     let userQualitySetting = GM_getValue('qualitySetting', ' 自动选择最高画质 ');
@@ -100,12 +107,12 @@
             userQualityIndex = Math.max(userQualityIndex, 0);
             while (userQualityIndex < qualityPreferences.length) {
                 const nextQuality = qualityPreferences[userQualityIndex++];
-                preferredQuality = Array.from(qualityItems).find(item = >item.textContent.trim().startsWith(nextQuality) && (isVip || !item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
+                preferredQuality = Array.from(qualityItems).find(item => item.textContent.trim().startsWith(nextQuality) && (isVip || !item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
                 if (preferredQuality) break;
             }
         }
 
-        preferredQuality ? .click();
+        preferredQuality?.click();
 
         const hiResButton = document.querySelector('.bpx-player-ctrl-flac');
         if (hiResButton) {
@@ -121,13 +128,8 @@
                 }
             }
         }
-        console.log(`用户是否为大会员: $ {
-            isVip ? '是': '否'
-        }`);
-        console.log(`已选择画质: $ {
-            userQualitySetting
-        }`);
-
+        console.log(`用户是否为大会员: ${isVip ? '是' : '否'}`);
+        console.log(`已选择画质: ${userQualitySetting}`);
     }
 
     function createSettingsPanel() {
@@ -135,10 +137,10 @@
         panel.id = 'bilibili-quality-selector';
 
         const QUALITIES = [' 自动选择最高画质 ', '8K', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P', '480P', '360P'];
-        QUALITIES.forEach(quality = >{
+        QUALITIES.forEach(quality => {
             const button = document.createElement('button');
             button.textContent = quality;
-            button.onclick = () = >{
+            button.onclick = () => {
                 userQualitySetting = quality;
                 GM_setValue('qualitySetting', quality);
                 userHasChangedQuality = true;
@@ -150,7 +152,7 @@
 
         const hiResButton = document.createElement('button');
         hiResButton.textContent = 'Hi-Res 音质';
-        hiResButton.onclick = () = >{
+        hiResButton.onclick = () => {
             hiResAudioEnabled = !hiResAudioEnabled;
             GM_setValue('hiResAudio', hiResAudioEnabled);
             updateQualityButtons(panel);
@@ -160,11 +162,10 @@
 
         updateQualityButtons(panel);
         document.body.appendChild(panel);
-
     }
 
     function updateQualityButtons(panel) {
-        panel.querySelectorAll('button').forEach(button = >{
+        panel.querySelectorAll('button').forEach(button => {
             button.classList.remove('active');
             if (button.textContent === userQualitySetting || (button.textContent === 'Hi-Res 音质' && hiResAudioEnabled)) {
                 button.classList.add('active');
@@ -178,11 +179,10 @@
             createSettingsPanel();
             panel = document.getElementById('bilibili-quality-selector');
         }
-        panel.style.display = panel.style.display === 'block' ? 'none': 'block';
+        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
     }
 
-    document.addEventListener('mousedown',
-    function(event) {
+    document.addEventListener('mousedown', function (event) {
         const panel = document.getElementById('bilibili-quality-selector');
         if (panel && !panel.contains(event.target)) {
             panel.style.display = 'none';
@@ -193,36 +193,22 @@
 
     // 获取页面加载时长，由于缓存会加快加载速度，所以设置的执行延迟都很长，主要用于首屏。
     // 代码还在实验阶段，如果出现 BUG 请附上控制台输出到 Github 反馈，非常感谢。
+
     const navigationStart = window.performance.timing.navigationStart;
     const unloadEventEnd = window.performance.timing.unloadEventEnd;
 
     if (navigationStart > 0 && unloadEventEnd > 0 && unloadEventEnd >= navigationStart) {
         const loadTime = unloadEventEnd - navigationStart;
 
-        console.log(`加载时长: $ {
-            loadTime
-        }毫秒`);
+        console.log(`加载时长: ${loadTime} 毫秒`);
 
-        const thresholds = [{
-            threshold: 3000,
-            delay: 6000
-        },
-        {
-            threshold: 4000,
-            delay: 6500
-        },
-        {
-            threshold: 5000,
-            delay: 7000
-        },
-        {
-            threshold: 8000,
-            delay: 8000
-        },
-        {
-            threshold: 9000,
-            delay: 9000
-        }];
+        const thresholds = [
+            { threshold: 3000, delay: 6000 },
+            { threshold: 4000, delay: 6500 },
+            { threshold: 5000, delay: 7000 },
+            { threshold: 8000, delay: 8000 },
+            { threshold: 9000, delay: 9000 }
+        ];
 
         let delay = 15000;
 
@@ -233,15 +219,12 @@
             }
         }
 
-        console.log(`所选延迟: $ {
-            delay
-        }毫秒`);
+        console.log(`所选延迟: ${delay} 毫秒`);
 
-        window.onload = function() {
+        window.onload = function () {
             setTimeout(selectQualityBasedOnSetting, delay);
         };
     } else {
-        console.error("加载时常获取失败，执行默认延迟。");
+        console.error("加载时长获取失败，执行默认延迟。");
     }
-
 })();
