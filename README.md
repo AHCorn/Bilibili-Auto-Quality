@@ -14,12 +14,18 @@ Automatically unlock and select highest quality and lossless audio for Bilibili 
 
 </div>
 
+<br>
+
 ## 🗄 预览
 
   
 ![image](https://github.com/AHCorn/Bilibili-Auto-Quality/assets/42889600/e3c5b814-0fee-4773-9273-2e02290c1b4c)
 
+<br>
+
+
 ## ⭐ 特性
+
 
 1. 整合 [Bilibili 解锁杜比全景声 & 8K &开启 HDR &直播画质PRO](https://greasyfork.org/zh-TW/scripts/441403) 的解锁功能。
 
@@ -29,6 +35,7 @@ Automatically unlock and select highest quality and lossless audio for Bilibili 
    
 4. 支持自动开关无损音频
 
+<br>
 
 ## 📝 待办
 | 🔔 未完成 | ✅ 已完成 |
@@ -37,9 +44,11 @@ Automatically unlock and select highest quality and lossless audio for Bilibili 
 |   优化切换速度      |          |
 |   补充 720P 60帧 选项      |          |
 
+<br>
 
 ## ❤ 感谢
 个人之前一直在使用 [Bilibili 视频默认选择最高清晰度](https://greasyfork.org/zh-CN/scripts/374770-bilibili-%E8%A7%86%E9%A2%91%E9%BB%98%E8%AE%A4%E9%80%89%E6%8B%A9%E6%9C%80%E9%AB%98%E6%B8%85%E6%99%B0%E5%BA%A6) 这个脚本，但因为找不到了所以才重新写的，相较这个脚本增添用户设置面板和对无损音频的自动设置。
+
 
 本脚本的 26 - 30 行代码来自于[Bilibili 解锁杜比全景声 & 8K &开启 HDR &直播画质PRO](https://greasyfork.org/zh-TW/scripts/441403) 。
 
