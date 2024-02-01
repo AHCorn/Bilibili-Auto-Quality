@@ -191,40 +191,26 @@
 
     GM_registerMenuCommand("设置画质和音质", toggleSettingsPanel);
 
-    // 获取页面加载时长，由于缓存会加快加载速度，所以设置的执行延迟都很长，主要用于首屏。
     // 代码还在实验阶段，如果出现 BUG 请附上控制台输出到 Github 反馈，非常感谢。
 
-    const navigationStart = window.performance.timing.navigationStart;
-    const unloadEventEnd = window.performance.timing.unloadEventEnd;
-
-    if (navigationStart > 0 && unloadEventEnd > 0 && unloadEventEnd >= navigationStart) {
-        const loadTime = unloadEventEnd - navigationStart;
-
-        console.log(`加载时长: ${loadTime} 毫秒`);
-
-        const thresholds = [
-            { threshold: 3000, delay: 6000 },
-            { threshold: 4000, delay: 6500 },
-            { threshold: 5000, delay: 7000 },
-            { threshold: 8000, delay: 8000 },
-            { threshold: 9000, delay: 9000 }
-        ];
-
-        let delay = 15000;
-
-        for (const threshold of thresholds) {
-            if (loadTime < threshold.threshold) {
-                delay = threshold.delay;
-                break;
-            }
-        }
-
-        console.log(`所选延迟: ${delay} 毫秒`);
-
         window.onload = function () {
-            setTimeout(selectQualityBasedOnSetting, delay);
+          //onload事件后7.5秒开始执行脚本，还没找到什么特别好的方法来判断页面是否完成加载
+            setTimeout(selectQualityBasedOnSetting, 7500);
+          console.log(`脚本开始运行`);
         };
-    } else {
-        console.error("加载时长获取失败，执行默认延迟。");
+
+const parentElement = document.body;
+
+parentElement.addEventListener('click', function(event) {
+  const targetElement = event.target;
+
+  if (targetElement.tagName === 'DIV' || targetElement.tagName === 'P') {
+    // 判定带 title 属性的 div、p 标签或 class 包含 title 的元素为页面切换，然后延迟五秒执行一次切换
+    if (targetElement.hasAttribute('title') || targetElement.classList.contains('title')) {
+      setTimeout(selectQualityBasedOnSetting, 5000);
+      console.log('页面发生切换:', targetElement.textContent.trim());
     }
+  }
+});
+
 })();
