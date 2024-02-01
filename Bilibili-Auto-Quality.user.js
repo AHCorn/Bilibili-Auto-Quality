@@ -2,6 +2,7 @@
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
 // @version      2.1.2
+// @license      MIT
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质及无损音频。
 // @author       安和（AHCorn）
 // @icon         https://www.bilibili.com/favicon.ico
