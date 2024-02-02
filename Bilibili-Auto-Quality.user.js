@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      2.1.2
+// @version      2.2
 // @license      MIT
-// @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质及无损音频。
+// @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质，无损音频及杜比全景声。
 // @author       安和（AHCorn）
 // @icon         https://www.bilibili.com/favicon.ico
 // @match        *://www.bilibili.com/video/*
@@ -73,6 +73,7 @@
     `);
 
     let hiResAudioEnabled = GM_getValue('hiResAudio', false);
+    let dolbyAtmosEnabled = GM_getValue('dolbyAtmos', false);
     let userQualitySetting = GM_getValue('qualitySetting', ' 自动选择最高画质 ');
     let userHasChangedQuality = false;
 
@@ -84,6 +85,12 @@
         if (userHasChangedQuality) return;
 
         const isVip = isVipUser();
+        console.log(`用户是否为大会员：${isVip ? '是' : '否'}`);
+        const currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
+        console.log(`当前画质：${currentQuality}`);
+        console.log(`目标画质：${userQualitySetting}`);
+        console.log(`HiRes高音质自动开关：${hiResAudioEnabled ? '开启' : '关闭'}`);
+        console.log(`杜比全景声自动开关：${dolbyAtmosEnabled ? '开启' : '关闭'}`);
         const qualityItems = document.querySelectorAll('.bpx-player-ctrl-quality-menu .bpx-player-ctrl-quality-menu-item');
         let preferredQuality = null;
         let qualityFound = false;
@@ -129,15 +136,29 @@
                 }
             }
         }
-        console.log(`用户是否为大会员: ${isVip ? '是' : '否'}`);
-        console.log(`已选择画质: ${userQualitySetting}`);
+
+const dolbyButton = document.querySelector('.bpx-player-ctrl-dolby');
+if (dolbyButton) {
+    if (isVip) {
+        if (dolbyAtmosEnabled && !dolbyButton.classList.contains('bpx-state-active')) {
+            dolbyButton.click();
+        } else if (!dolbyAtmosEnabled && dolbyButton.classList.contains('bpx-state-active')) {
+            dolbyButton.click();
+        }
+    } else {
+        if (dolbyButton.classList.contains('bpx-state-active')) {
+            dolbyButton.click();
+        }
+    }
+}
+
     }
 
     function createSettingsPanel() {
         const panel = document.createElement('div');
         panel.id = 'bilibili-quality-selector';
 
-        const QUALITIES = [' 自动选择最高画质 ', '8K', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P', '480P', '360P'];
+        const QUALITIES = [' 自动选择最高画质 ', '8K', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P'];
         QUALITIES.forEach(quality => {
             const button = document.createElement('button');
             button.textContent = quality;
@@ -161,6 +182,16 @@
         };
         panel.appendChild(hiResButton);
 
+        const dolbyAtmosButton = document.createElement('button');
+        dolbyAtmosButton.textContent = '杜比全景声';
+        dolbyAtmosButton.onclick = () => {
+            dolbyAtmosEnabled = !dolbyAtmosEnabled;
+            GM_setValue('dolbyAtmos', dolbyAtmosEnabled);
+            updateQualityButtons(panel);
+            selectQualityBasedOnSetting();
+        };
+        panel.appendChild(dolbyAtmosButton);
+
         updateQualityButtons(panel);
         document.body.appendChild(panel);
     }
@@ -168,7 +199,9 @@
     function updateQualityButtons(panel) {
         panel.querySelectorAll('button').forEach(button => {
             button.classList.remove('active');
-            if (button.textContent === userQualitySetting || (button.textContent === 'Hi-Res 音质' && hiResAudioEnabled)) {
+            if (button.textContent === userQualitySetting ||
+                (button.textContent === 'Hi-Res 音质' && hiResAudioEnabled) ||
+                (button.textContent === '杜比全景声' && dolbyAtmosEnabled)) {
                 button.classList.add('active');
             }
         });
@@ -192,26 +225,22 @@
 
     GM_registerMenuCommand("设置画质和音质", toggleSettingsPanel);
 
-    // 代码还在实验阶段，如果出现 BUG 请附上控制台输出到 Github 反馈，非常感谢。
+    window.onload = function () {
+        setTimeout(selectQualityBasedOnSetting, 7500);
+        console.log(`脚本开始运行，7.5秒后切换画质`);
+    };
 
-        window.onload = function () {
-          //onload事件后7.5秒开始执行脚本，还没找到什么特别好的方法来判断页面是否完成加载
-            setTimeout(selectQualityBasedOnSetting, 7500);
-          console.log(`脚本开始运行`);
-        };
+    const parentElement = document.body;
 
-const parentElement = document.body;
+    parentElement.addEventListener('click', function(event) {
+        const targetElement = event.target;
 
-parentElement.addEventListener('click', function(event) {
-  const targetElement = event.target;
-
-  if (targetElement.tagName === 'DIV' || targetElement.tagName === 'P') {
-    // 判定带 title 属性的 div、p 标签或 class 包含 title 的元素为页面切换，然后延迟五秒执行一次切换
-    if (targetElement.hasAttribute('title') || targetElement.classList.contains('title')) {
-      setTimeout(selectQualityBasedOnSetting, 5000);
-      console.log('页面发生切换:', targetElement.textContent.trim());
-    }
-  }
-});
+        if (targetElement.tagName === 'DIV' || targetElement.tagName === 'P') {
+            if (targetElement.hasAttribute('title') || targetElement.classList.contains('title')) {
+                setTimeout(selectQualityBasedOnSetting, 5000);
+                console.log('页面发生切换:', targetElement.textContent.trim());
+            }
+        }
+    });
 
 })();
