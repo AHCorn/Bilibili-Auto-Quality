@@ -42,7 +42,7 @@ Automatically unlock and select highest quality and lossless audio for Bilibili 
 | -------- | -------- |
 |   适配直播页面       |  非大会员自动切换        |
 |   优化切换速度      |    监听页面切换      |
-|   补充 720P 60帧 选项      |          |
+|         |   杜比全景声       |
 
 <br>
 
