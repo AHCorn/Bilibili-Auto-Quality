@@ -40,7 +40,7 @@ Automatically unlock and select highest quality,lossless audio,and Dolby Atmos f
 | -------- | -------- |
 |   适配直播页面       |  非大会员自动切换        |
 |   优化切换速度      |    监听页面切换      |
-|         |   杜比全景声       |
+|  适配 HDR 选项       |   杜比全景声       |
 
 <br>
 
