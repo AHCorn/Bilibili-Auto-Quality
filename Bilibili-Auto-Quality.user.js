@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      2.2.1
+// @version      2.2.2
 // @license      MIT
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质、无损音频及杜比全景声。
 // @author       安和（AHCorn）
@@ -77,7 +77,6 @@
     let userQualitySetting = GM_getValue('qualitySetting', ' 自动选择最高画质 ');
     let userHasChangedQuality = false;
 
-    // 本次更新优化判断逻辑，增加当前画质检验
     function isVipUser() {
         const vipElement = document.querySelector('.bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip');
         const currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text');
@@ -98,7 +97,7 @@
         let preferredQuality = null;
         let qualityFound = false;
 
-        const qualityPreferences = ['8K', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P' ]; // 本次更新：增加HDR选项
+        const qualityPreferences = ['8K', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P' ]; 
         let userQualityIndex = qualityPreferences.indexOf(userQualitySetting);
 
         if (userQualitySetting !== ' 自动选择最高画质 ') {
@@ -227,10 +226,33 @@
 
     GM_registerMenuCommand("设置画质和音质", toggleSettingsPanel);
 
-    window.onload = function () {
-        setTimeout(selectQualityBasedOnSetting, 7500);
-        console.log(`脚本开始运行，7.5秒后切换画质`);
-    };
+//本次更新：通过检查头像部分是否加载完成来决定脚本的执行时间
+window.onload = function () {
+    let hasElementAppeared = false;
+    const observer = new MutationObserver(function (mutations, me) {
+        const element = document.querySelector('.v-popover-wrap.header-avatar-wrap');
+        if (element) {
+            hasElementAppeared = true; 
+            setTimeout(selectQualityBasedOnSetting, 5000); 
+            console.log(`脚本开始运行，5秒后切换画质`);
+            me.disconnect(); 
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+
+    setTimeout(function() {
+        observer.disconnect(); 
+        if (!hasElementAppeared) { 
+            console.error("等待超时，尝试执行中...");
+            selectQualityBasedOnSetting(); 
+        }
+    }, 15000); 
+};
+
 
     const parentElement = document.body;
 
