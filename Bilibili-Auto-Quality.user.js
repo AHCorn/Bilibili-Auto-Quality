@@ -95,43 +95,53 @@
     console.log(`杜比全景声自动开关：${dolbyAtmosEnabled ? '开启' : '关闭'}`);
     const qualityItems = document.querySelectorAll('.bpx-player-ctrl-quality-menu .bpx-player-ctrl-quality-menu-item');
     let preferredQuality = null;
-    let highestAvailableQuality = '';
-        
-    //本次更新：增加画质切换检验，如果切换五秒后，当前画质不包含目标画质的关键字的话会尝试再切换一次
+    let autoSelectedQuality = null; 
+    //本次更新：未找到用户所选画质的时候选择最高可用画质
     const qualityPreferences = ['8K', '杜比视界', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P'];
     if (userQualitySetting === ' 自动选择最高画质 ') {
         for (let pref of qualityPreferences) {
             let item = Array.from(qualityItems).find(i => i.textContent.trim().startsWith(pref) && (isVip || !i.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
             if (item) {
                 preferredQuality = item;
+                autoSelectedQuality = item.textContent.trim(); 
                 break;
             }
         }
     } else {
         for (let pref of qualityPreferences) {
             if (userQualitySetting.includes(pref)) {
-                preferredQuality = Array.from(qualityItems).find(item => item.textContent.trim().includes(pref) && (isVip || !item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
-                if (preferredQuality) {
+                let foundItem = Array.from(qualityItems).find(item => item.textContent.trim().includes(pref) && (isVip || !item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
+                if (foundItem) {
+                    preferredQuality = foundItem;
+                    autoSelectedQuality = foundItem.textContent.trim(); 
                     break;
+                }
+            }
+        }
+
+        if (!preferredQuality) {
+            console.log("未找到指定的目标画质，将自动选择最高可用画质");
+            for (let pref of qualityPreferences) {
+                let item = Array.from(qualityItems).find(i => i.textContent.trim().startsWith(pref) && (isVip || !i.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
+                if (item) {
+                    preferredQuality = item;
+                    autoSelectedQuality = item.textContent.trim();
+                    break; 
                 }
             }
         }
     }
 
-
-    if (preferredQuality) {
-        preferredQuality.click();
-    }
+    preferredQuality?.click();
 
     setTimeout(() => {
         currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
-        const targetQuality = userQualitySetting === ' 自动选择最高画质 ' ? highestAvailableQuality : userQualitySetting;
-
-        if (!currentQuality.includes(targetQuality)) {
-            console.log("检测到画质未能成功切换，尝试切换第二次");
+        // 更新检测逻辑，以匹配自动选择的画质
+        if (autoSelectedQuality && !currentQuality.includes(autoSelectedQuality)) {
+            console.log("检测到画质未能成功切换，尝试切换到最高可用画质");
             preferredQuality?.click();
         }
-    }, 5000);
+    }, 7000);
 
         const hiResButton = document.querySelector('.bpx-player-ctrl-flac');
         if (hiResButton) {
