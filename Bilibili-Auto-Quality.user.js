@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      2.3.1
+// @version      2.3.2
 // @license      MIT
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质、无损音频及杜比全景声。
 // @author       安和（AHCorn）
@@ -98,7 +98,7 @@
     let highestAvailableQuality = '';
         
     //本次更新：增加画质切换检验，如果切换五秒后，当前画质不包含目标画质的关键字的话会尝试再切换一次
-    const qualityPreferences = ['8K', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P'];
+    const qualityPreferences = ['8K', '杜比视界', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P'];
     if (userQualitySetting === ' 自动选择最高画质 ') {
         for (let pref of qualityPreferences) {
             let item = Array.from(qualityItems).find(i => i.textContent.trim().startsWith(pref) && (isVip || !i.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
@@ -168,7 +168,7 @@
         const panel = document.createElement('div');
         panel.id = 'bilibili-quality-selector';
 
-        const QUALITIES = [' 自动选择最高画质 ', '8K', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P', '480P', '360P']; // 本次更新：移除 720P 60帧选项，该画质似乎已被B站移除
+        const QUALITIES = [' 自动选择最高画质 ', '8K', '杜比视界','HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P', '480P', '360P']; // 本次更新：移除 720P 60帧选项，该画质似乎已被B站移除
         QUALITIES.forEach(quality => {
             const button = document.createElement('button');
             button.textContent = quality;
