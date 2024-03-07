@@ -41,10 +41,11 @@ Automatically unlock and select highest quality,lossless audio,and Dolby Atmos f
 | 🔔 未完成 | ✅ 已完成 |
 | -------- | -------- |
 |   适配直播页面       |  非大会员自动切换        |
-|        |    监听页面切换      |
-|    适配杜比视界选项     |   杜比全景声       |
+|    适配杜比视界选项    |    监听页面切换      |
+|         |   杜比全景声       |
 |       |   适配 HDR 选项      |
 |        |   优化切换速度        |
+|        |   优化会员检测逻辑        |
 
 <br>
 
