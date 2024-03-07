@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      2.2
+// @version      2.2.1
 // @license      MIT
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质、无损音频及杜比全景声。
 // @author       安和（AHCorn）
@@ -77,8 +77,11 @@
     let userQualitySetting = GM_getValue('qualitySetting', ' 自动选择最高画质 ');
     let userHasChangedQuality = false;
 
+    // 本次更新优化判断逻辑，增加当前画质检验
     function isVipUser() {
-        return document.querySelector('.bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip') !== null;
+        const vipElement = document.querySelector('.bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip');
+        const currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text');
+        return vipElement !== null || (currentQuality && currentQuality.textContent.includes('大会员'));
     }
 
     function selectQualityBasedOnSetting() {
@@ -95,7 +98,7 @@
         let preferredQuality = null;
         let qualityFound = false;
 
-        const qualityPreferences = ['8K', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P'];
+        const qualityPreferences = ['8K', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P' ]; // 本次更新：增加HDR选项
         let userQualityIndex = qualityPreferences.indexOf(userQualitySetting);
 
         if (userQualitySetting !== ' 自动选择最高画质 ') {
@@ -137,28 +140,27 @@
             }
         }
 
-const dolbyButton = document.querySelector('.bpx-player-ctrl-dolby');
-if (dolbyButton) {
-    if (isVip) {
-        if (dolbyAtmosEnabled && !dolbyButton.classList.contains('bpx-state-active')) {
-            dolbyButton.click();
-        } else if (!dolbyAtmosEnabled && dolbyButton.classList.contains('bpx-state-active')) {
-            dolbyButton.click();
+        const dolbyButton = document.querySelector('.bpx-player-ctrl-dolby');
+        if (dolbyButton) {
+            if (isVip) {
+                if (dolbyAtmosEnabled && !dolbyButton.classList.contains('bpx-state-active')) {
+                    dolbyButton.click();
+                } else if (!dolbyAtmosEnabled && dolbyButton.classList.contains('bpx-state-active')) {
+                    dolbyButton.click();
+                }
+            } else {
+                if (dolbyButton.classList.contains('bpx-state-active')) {
+                    dolbyButton.click();
+                }
+            }
         }
-    } else {
-        if (dolbyButton.classList.contains('bpx-state-active')) {
-            dolbyButton.click();
-        }
-    }
-}
-
     }
 
     function createSettingsPanel() {
         const panel = document.createElement('div');
         panel.id = 'bilibili-quality-selector';
 
-        const QUALITIES = [' 自动选择最高画质 ', '8K', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P'];
+        const QUALITIES = [' 自动选择最高画质 ', '8K', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P']; // 本次更新：增加HDR选项
         QUALITIES.forEach(quality => {
             const button = document.createElement('button');
             button.textContent = quality;
