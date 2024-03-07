@@ -8,6 +8,8 @@
 
 Automatically unlock and select highest quality,lossless audio,and Dolby Atmos for Bilibili videos.
 
+⚠ 脚本实现的是自动选择当前用户可选的最高音画质，而不是让非会员用户使用会员选项。
+
 ![JavaScript](https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E) 
 
 </div>
