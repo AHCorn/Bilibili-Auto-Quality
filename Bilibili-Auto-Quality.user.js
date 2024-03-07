@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      2.2.2
+// @version      2.3
 // @license      MIT
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质、无损音频及杜比全景声。
 // @author       安和（AHCorn）
@@ -84,45 +84,55 @@
     }
 
     function selectQualityBasedOnSetting() {
-        if (userHasChangedQuality) return;
+    if (userHasChangedQuality) return;
 
-        const isVip = isVipUser();
-        console.log(`用户是否为大会员：${isVip ? '是' : '否'}`);
-        const currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
-        console.log(`当前画质：${currentQuality}`);
-        console.log(`目标画质：${userQualitySetting}`);
-        console.log(`HiRes高音质自动开关：${hiResAudioEnabled ? '开启' : '关闭'}`);
-        console.log(`杜比全景声自动开关：${dolbyAtmosEnabled ? '开启' : '关闭'}`);
-        const qualityItems = document.querySelectorAll('.bpx-player-ctrl-quality-menu .bpx-player-ctrl-quality-menu-item');
-        let preferredQuality = null;
-        let qualityFound = false;
-
-        const qualityPreferences = ['8K', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P' ]; 
-        let userQualityIndex = qualityPreferences.indexOf(userQualitySetting);
-
-        if (userQualitySetting !== ' 自动选择最高画质 ') {
-            for (let item of qualityItems) {
-                const qualityText = item.textContent.trim();
-                const isVipQuality = item.querySelector('.bpx-player-ctrl-quality-badge-bigvip') !== null;
-
-                if (qualityText.startsWith(userQualitySetting) && (isVip || !isVipQuality)) {
-                    preferredQuality = item;
-                    qualityFound = true;
+    const isVip = isVipUser();
+    console.log(`用户是否为大会员：${isVip ? '是' : '否'}`);
+    let currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
+    console.log(`当前画质：${currentQuality}`);
+    console.log(`目标画质：${userQualitySetting}`);
+    console.log(`HiRes高音质自动开关：${hiResAudioEnabled ? '开启' : '关闭'}`);
+    console.log(`杜比全景声自动开关：${dolbyAtmosEnabled ? '开启' : '关闭'}`);
+    const qualityItems = document.querySelectorAll('.bpx-player-ctrl-quality-menu .bpx-player-ctrl-quality-menu-item');
+    let preferredQuality = null;
+    let highestAvailableQuality = '';
+        
+    //本次更新：完善日志输出、增加画质切换检验，如果切换五秒后，当前画质不包含目标画质的关键字的话会尝试再切换一次
+    const qualityPreferences = ['8K', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P',  '720P', '480P', '360P']; // 本次更新：移除 720P 60帧选项，该画质似乎已被B站移除
+    if (userQualitySetting === ' 自动选择最高画质 ') {
+        for (let pref of qualityPreferences) {
+            let item = Array.from(qualityItems).find(i => i.textContent.trim().startsWith(pref) && (isVip || !i.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
+            if (item) {
+                highestAvailableQuality = pref;
+                preferredQuality = item;
+                console.log(`自动选择的最高画质是：${highestAvailableQuality}`);
+                break;
+            }
+        }
+    } else {
+        for (let pref of qualityPreferences) {
+            if (userQualitySetting.includes(pref)) {
+                preferredQuality = Array.from(qualityItems).find(item => item.textContent.trim().includes(pref) && (isVip || !item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
+                if (preferredQuality) {
                     break;
                 }
             }
         }
+    }
 
-        if (!qualityFound) {
-            userQualityIndex = Math.max(userQualityIndex, 0);
-            while (userQualityIndex < qualityPreferences.length) {
-                const nextQuality = qualityPreferences[userQualityIndex++];
-                preferredQuality = Array.from(qualityItems).find(item => item.textContent.trim().startsWith(nextQuality) && (isVip || !item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
-                if (preferredQuality) break;
-            }
+    if (preferredQuality) {
+        preferredQuality.click();
+    }
+
+    setTimeout(() => {
+        currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
+        const targetQuality = userQualitySetting === ' 自动选择最高画质 ' ? highestAvailableQuality : userQualitySetting;
+
+        if (!currentQuality.includes(targetQuality)) {
+            console.log("检测到画质未能成功切换，尝试切换第二次");
+            preferredQuality?.click();
         }
-
-        preferredQuality?.click();
+    }, 5000);
 
         const hiResButton = document.querySelector('.bpx-player-ctrl-flac');
         if (hiResButton) {
@@ -159,7 +169,7 @@
         const panel = document.createElement('div');
         panel.id = 'bilibili-quality-selector';
 
-        const QUALITIES = [' 自动选择最高画质 ', '8K', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P']; // 本次更新：增加HDR选项
+        const QUALITIES = [' 自动选择最高画质 ', '8K', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P', '480P', '360P']; // 本次更新：移除 720P 60帧选项，该画质似乎已被B站移除
         QUALITIES.forEach(quality => {
             const button = document.createElement('button');
             button.textContent = quality;
@@ -233,8 +243,8 @@ window.onload = function () {
         const element = document.querySelector('.v-popover-wrap.header-avatar-wrap');
         if (element) {
             hasElementAppeared = true; 
-            setTimeout(selectQualityBasedOnSetting, 5000); 
-            console.log(`脚本开始运行，5秒后切换画质`);
+            setTimeout(selectQualityBasedOnSetting, 3500); 
+            console.log(`脚本开始运行，3.5秒后切换画质`); //本次更新：由于增加了二次切换的容错，所以可以稍微快一些
             me.disconnect(); 
         }
     });
