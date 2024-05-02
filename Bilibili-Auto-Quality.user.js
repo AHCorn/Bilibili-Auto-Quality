@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      2.3.4
+// @version      2.5.0
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质、无损音频及杜比全景声。
 // @author       安和（AHCorn）
@@ -83,65 +83,77 @@
         return vipElement !== null || (currentQuality && currentQuality.textContent.includes('大会员'));
     }
 
-    function selectQualityBasedOnSetting() {
+function selectQualityBasedOnSetting() {
     if (userHasChangedQuality) return;
 
     const isVip = isVipUser();
-    console.log(`用户是否为大会员：${isVip ? '是' : '否'}`);
+    console.log(`用户是否为大会员:${isVip ? '是' : '否'}`);
     let currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
-    console.log(`当前画质：${currentQuality}`);
-    console.log(`目标画质：${userQualitySetting}`);
-    console.log(`HiRes高音质自动开关：${hiResAudioEnabled ? '开启' : '关闭'}`);
-    console.log(`杜比全景声自动开关：${dolbyAtmosEnabled ? '开启' : '关闭'}`);
+    console.log(`当前画质:${currentQuality}`);
+    console.log(`目标画质:${userQualitySetting}`);
+
     const qualityItems = document.querySelectorAll('.bpx-player-ctrl-quality-menu .bpx-player-ctrl-quality-menu-item');
-    let preferredQuality = null;
-    let autoSelectedQuality = null; 
+    const availableQualities = Array.from(qualityItems)
+        .map(item => ({
+            name: item.textContent.trim(),
+            element: item,
+            isVipOnly: !!item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')
+        }))
+        .filter(quality => isVip || !quality.isVipOnly);
 
-    const qualityPreferences = ['8K', '杜比视界', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P'];
+    console.log(`当前视频可用画质:`, availableQualities.map(q => q.name));
+
+    const qualityPreferences = ['8K', '杜比视界', '4K', '1080P 高码率', '1080P 60帧', '1080P', '720P 60帧', '720P', '480P', '360P'];
+
+    availableQualities.sort((a, b) => {
+        const getQualityIndex = (name) => {
+            for (let i = 0; i < qualityPreferences.length; i++) {
+                if (name.includes(qualityPreferences[i])) {
+                    return i;
+                }
+            }
+            return qualityPreferences.length;
+        };
+        return getQualityIndex(a.name) - getQualityIndex(b.name);
+    });
+
+    let targetQuality;
     if (userQualitySetting === ' 自动选择最高画质 ') {
-        for (let pref of qualityPreferences) {
-            let item = Array.from(qualityItems).find(i => i.textContent.trim().startsWith(pref) && (isVip || !i.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
-            if (item) {
-                preferredQuality = item;
-                autoSelectedQuality = item.textContent.trim(); 
-                break;
-            }
-        }
+        targetQuality = availableQualities[0];
     } else {
-        for (let pref of qualityPreferences) {
-            if (userQualitySetting.includes(pref)) {
-                let foundItem = Array.from(qualityItems).find(item => item.textContent.trim().includes(pref) && (isVip || !item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
-                if (foundItem) {
-                    preferredQuality = foundItem;
-                    autoSelectedQuality = foundItem.textContent.trim(); 
-                    break;
-                }
-            }
-        }
-
-        if (!preferredQuality) {
-            console.log("未找到指定的目标画质，将自动选择最高可用画质");
-            for (let pref of qualityPreferences) {
-                let item = Array.from(qualityItems).find(i => i.textContent.trim().startsWith(pref) && (isVip || !i.querySelector('.bpx-player-ctrl-quality-badge-bigvip')));
-                if (item) {
-                    preferredQuality = item;
-                    autoSelectedQuality = item.textContent.trim();
-                    break; 
-                }
-            }
+        targetQuality = availableQualities.find(quality => quality.name.includes(userQualitySetting));
+        if (!targetQuality) {
+            console.log(`未找到目标画质 ${userQualitySetting},将选择最高可用画质`);
+            targetQuality = availableQualities[0];
         }
     }
 
-    preferredQuality?.click();
+    console.log(`实际目标画质:${targetQuality.name}`);
+    targetQuality.element.click();
 
     setTimeout(() => {
         currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
 
-        if (autoSelectedQuality && !currentQuality.includes(autoSelectedQuality)) {
-            console.log("再次尝试切换到目标画质");
-            preferredQuality?.click();
+        const getCurrentQualityIndex = (name) => {
+            for (let i = 0; i < qualityPreferences.length; i++) {
+                if (name.includes(qualityPreferences[i])) {
+                    return i;
+                }
+            }
+            return qualityPreferences.length;
+        };
+
+        const currentQualityIndex = getCurrentQualityIndex(currentQuality);
+        const targetQualityIndex = getCurrentQualityIndex(targetQuality.name);
+
+        console.log(`二次切换检查 - 当前画质索引:${currentQualityIndex}, 目标画质索引:${targetQualityIndex}`); // 索引画质，延后10秒比对，不相符就再切换一次
+        if (currentQualityIndex === targetQualityIndex) {
+            console.log("当前画质和目标画质相符,无需执行二次切换");
+        } else {
+            console.log("当前画质和目标画质不相符,执行二次切换");
+            targetQuality.element.click();
         }
-    }, 6000);
+    }, 7000);
 
         const hiResButton = document.querySelector('.bpx-player-ctrl-flac');
         if (hiResButton) {
@@ -251,8 +263,8 @@ window.onload = function () {
         const element = document.querySelector('.v-popover-wrap.header-avatar-wrap');
         if (element) {
             hasElementAppeared = true; 
-            setTimeout(selectQualityBasedOnSetting, 6000); 
-            console.log(`脚本开始运行，6秒后切换画质`); // 根据反馈，延后执行时间以免判断错误
+            setTimeout(selectQualityBasedOnSetting, 4000); 
+            console.log(`脚本开始运行，4秒后切换画质`); 
             me.disconnect(); 
         }
     });
