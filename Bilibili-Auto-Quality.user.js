@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      2.3.3
+// @version      2.3.4
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质、无损音频及杜比全景声。
 // @author       安和（AHCorn）
@@ -96,7 +96,7 @@
     const qualityItems = document.querySelectorAll('.bpx-player-ctrl-quality-menu .bpx-player-ctrl-quality-menu-item');
     let preferredQuality = null;
     let autoSelectedQuality = null; 
-    //本次更新：未找到用户所选画质的时候选择最高可用画质
+
     const qualityPreferences = ['8K', '杜比视界', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P'];
     if (userQualitySetting === ' 自动选择最高画质 ') {
         for (let pref of qualityPreferences) {
@@ -136,12 +136,12 @@
 
     setTimeout(() => {
         currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
-        // 更新检测逻辑，以匹配自动选择的画质
+
         if (autoSelectedQuality && !currentQuality.includes(autoSelectedQuality)) {
-            console.log("检测到画质未能成功切换，尝试切换到最高可用画质");
+            console.log("再次尝试切换到目标画质");
             preferredQuality?.click();
         }
-    }, 7000);
+    }, 6000);
 
         const hiResButton = document.querySelector('.bpx-player-ctrl-flac');
         if (hiResButton) {
@@ -245,15 +245,14 @@
 
     GM_registerMenuCommand("设置画质和音质", toggleSettingsPanel);
 
-//本次更新：通过检查头像部分是否加载完成来决定脚本的执行时间
 window.onload = function () {
     let hasElementAppeared = false;
     const observer = new MutationObserver(function (mutations, me) {
         const element = document.querySelector('.v-popover-wrap.header-avatar-wrap');
         if (element) {
             hasElementAppeared = true; 
-            setTimeout(selectQualityBasedOnSetting, 3500); 
-            console.log(`脚本开始运行，3.5秒后切换画质`); //本次更新：由于增加了二次切换的容错，所以可以稍微快一些
+            setTimeout(selectQualityBasedOnSetting, 6000); 
+            console.log(`脚本开始运行，6秒后切换画质`); // 根据反馈，延后执行时间以免判断错误
             me.disconnect(); 
         }
     });
@@ -280,7 +279,7 @@ window.onload = function () {
 
         if (targetElement.tagName === 'DIV' || targetElement.tagName === 'P') {
             if (targetElement.hasAttribute('title') || targetElement.classList.contains('title')) {
-                setTimeout(selectQualityBasedOnSetting, 5000);
+                setTimeout(selectQualityBasedOnSetting, 6000);
                 console.log('页面发生切换:', targetElement.textContent.trim());
             }
         }
