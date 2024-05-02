@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      2.5.0
+// @version      2.5.1
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质、无损音频及杜比全景声。
 // @author       安和（AHCorn）
@@ -76,6 +76,7 @@
     let dolbyAtmosEnabled = GM_getValue('dolbyAtmos', false);
     let userQualitySetting = GM_getValue('qualitySetting', ' 自动选择最高画质 ');
     let userHasChangedQuality = false;
+    let takeOverQualityControl = GM_getValue('takeOverQualityControl', false);
 
     function isVipUser() {
         const vipElement = document.querySelector('.bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip');
@@ -83,218 +84,236 @@
         return vipElement !== null || (currentQuality && currentQuality.textContent.includes('大会员'));
     }
 
-function selectQualityBasedOnSetting() {
-    if (userHasChangedQuality) return;
+    function selectQualityBasedOnSetting() {
+        if (userHasChangedQuality) return;
 
-    const isVip = isVipUser();
-    console.log(`用户是否为大会员:${isVip ? '是' : '否'}`);
-    let currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
-    console.log(`当前画质:${currentQuality}`);
-    console.log(`目标画质:${userQualitySetting}`);
+        const isVip = isVipUser();
+        console.log(`用户是否为大会员:${isVip ? '是' : '否'}`);
+        let currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
+        console.log(`当前画质:${currentQuality}`);
+        console.log(`目标画质:${userQualitySetting}`);
 
-    const qualityItems = document.querySelectorAll('.bpx-player-ctrl-quality-menu .bpx-player-ctrl-quality-menu-item');
-    const availableQualities = Array.from(qualityItems)
-        .map(item => ({
-            name: item.textContent.trim(),
-            element: item,
-            isVipOnly: !!item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')
-        }))
-        .filter(quality => isVip || !quality.isVipOnly);
+        const qualityItems = document.querySelectorAll('.bpx-player-ctrl-quality-menu .bpx-player-ctrl-quality-menu-item');
+        const availableQualities = Array.from(qualityItems)
+            .map(item => ({
+                name: item.textContent.trim(),
+                element: item,
+                isVipOnly: !!item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')
+            }))
+            .filter(quality => isVip || !quality.isVipOnly);
 
-    console.log(`当前视频可用画质:`, availableQualities.map(q => q.name));
+        console.log(`当前视频可用画质:`, availableQualities.map(q => q.name));
 
-    const qualityPreferences = ['8K', '杜比视界', '4K', '1080P 高码率', '1080P 60帧', '1080P', '720P 60帧', '720P', '480P', '360P'];
+        const qualityPreferences = ['8K', '杜比视界', '4K', '1080P 高码率', '1080P 60帧', '1080P', '720P 60帧', '720P', '480P', '360P'];
 
-    availableQualities.sort((a, b) => {
-        const getQualityIndex = (name) => {
-            for (let i = 0; i < qualityPreferences.length; i++) {
-                if (name.includes(qualityPreferences[i])) {
-                    return i;
+        availableQualities.sort((a, b) => {
+            const getQualityIndex = (name) => {
+                for (let i = 0; i < qualityPreferences.length; i++) {
+                    if (name.includes(qualityPreferences[i])) {
+                        return i;
+                    }
                 }
-            }
-            return qualityPreferences.length;
-        };
-        return getQualityIndex(a.name) - getQualityIndex(b.name);
-    });
+                return qualityPreferences.length;
+            };
+            return getQualityIndex(a.name) - getQualityIndex(b.name);
+        });
 
-    let targetQuality;
-    if (userQualitySetting === ' 自动选择最高画质 ') {
-        targetQuality = availableQualities[0];
-    } else {
-        targetQuality = availableQualities.find(quality => quality.name.includes(userQualitySetting));
-        if (!targetQuality) {
-            console.log(`未找到目标画质 ${userQualitySetting},将选择最高可用画质`);
+        let targetQuality;
+        if (userQualitySetting === ' 自动选择最高画质 ') {
             targetQuality = availableQualities[0];
-        }
-    }
-
-    console.log(`实际目标画质:${targetQuality.name}`);
-    targetQuality.element.click();
-
-    setTimeout(() => {
-        currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
-
-        const getCurrentQualityIndex = (name) => {
-            for (let i = 0; i < qualityPreferences.length; i++) {
-                if (name.includes(qualityPreferences[i])) {
-                    return i;
-                }
-            }
-            return qualityPreferences.length;
-        };
-
-        const currentQualityIndex = getCurrentQualityIndex(currentQuality);
-        const targetQualityIndex = getCurrentQualityIndex(targetQuality.name);
-
-        console.log(`二次切换检查 - 当前画质索引:${currentQualityIndex}, 目标画质索引:${targetQualityIndex}`); // 索引画质，延后10秒比对，不相符就再切换一次
-        if (currentQualityIndex === targetQualityIndex) {
-            console.log("当前画质和目标画质相符,无需执行二次切换");
         } else {
-            console.log("当前画质和目标画质不相符,执行二次切换");
-            targetQuality.element.click();
+            targetQuality = availableQualities.find(quality => quality.name.includes(userQualitySetting));
+            if (!targetQuality) {
+                console.log(`未找到目标画质 ${userQualitySetting},将选择最高可用画质`);
+                targetQuality = availableQualities[0];
+            }
         }
-    }, 7000);
 
-        const hiResButton = document.querySelector('.bpx-player-ctrl-flac');
-        if (hiResButton) {
-            if (isVip) {
-                if (hiResAudioEnabled && !hiResButton.classList.contains('bpx-state-active')) {
-                    hiResButton.click();
-                } else if (!hiResAudioEnabled && hiResButton.classList.contains('bpx-state-active')) {
-                    hiResButton.click();
+        console.log(`实际目标画质:${targetQuality.name}`);
+        targetQuality.element.click();
+
+        setTimeout(() => {
+            currentQuality = document.querySelector('.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text').textContent;
+
+            const getCurrentQualityIndex = (name) => {
+                for (let i = 0; i < qualityPreferences.length; i++) {
+                    if (name.includes(qualityPreferences[i])) {
+                        return i;
+                    }
                 }
+                return qualityPreferences.length;
+            };
+
+            const currentQualityIndex = getCurrentQualityIndex(currentQuality);
+            const targetQualityIndex = getCurrentQualityIndex(targetQuality.name);
+
+            console.log(`二次切换检查 - 当前画质索引:${currentQualityIndex}, 目标画质索引:${targetQualityIndex}`); // 索引画质，延后10秒比对，不相符就再切换一次
+            if (currentQualityIndex === targetQualityIndex) {
+                console.log("当前画质和目标画质相符,无需执行二次切换");
             } else {
-                if (hiResButton.classList.contains('bpx-state-active')) {
-                    hiResButton.click();
+                console.log("当前画质和目标画质不相符,执行二次切换");
+                targetQuality.element.click();
+            }
+        }, 7000);
+
+            const hiResButton = document.querySelector('.bpx-player-ctrl-flac');
+            if (hiResButton) {
+                if (isVip) {
+                    if (hiResAudioEnabled && !hiResButton.classList.contains('bpx-state-active')) {
+                        hiResButton.click();
+                    } else if (!hiResAudioEnabled && hiResButton.classList.contains('bpx-state-active')) {
+                        hiResButton.click();
+                    }
+                } else {
+                    if (hiResButton.classList.contains('bpx-state-active')) {
+                        hiResButton.click();
+                    }
+                }
+            }
+
+            const dolbyButton = document.querySelector('.bpx-player-ctrl-dolby');
+            if (dolbyButton) {
+                if (isVip) {
+                    if (dolbyAtmosEnabled && !dolbyButton.classList.contains('bpx-state-active')) {
+                        dolbyButton.click();
+                    } else if (!dolbyAtmosEnabled && dolbyButton.classList.contains('bpx-state-active')) {
+                        dolbyButton.click();
+                    }
+                } else {
+                    if (dolbyButton.classList.contains('bpx-state-active')) {
+                        dolbyButton.click();
+                    }
+                }
+            }
+
+            if (takeOverQualityControl) {
+                const qualityControlElement = document.querySelector('.bpx-player-ctrl-btn.bpx-player-ctrl-quality');
+                if (qualityControlElement) {
+                    qualityControlElement.remove();
                 }
             }
         }
 
-        const dolbyButton = document.querySelector('.bpx-player-ctrl-dolby');
-        if (dolbyButton) {
-            if (isVip) {
-                if (dolbyAtmosEnabled && !dolbyButton.classList.contains('bpx-state-active')) {
-                    dolbyButton.click();
-                } else if (!dolbyAtmosEnabled && dolbyButton.classList.contains('bpx-state-active')) {
-                    dolbyButton.click();
-                }
-            } else {
-                if (dolbyButton.classList.contains('bpx-state-active')) {
-                    dolbyButton.click();
-                }
-            }
-        }
-    }
+        function createSettingsPanel() {
+            const panel = document.createElement('div');
+            panel.id = 'bilibili-quality-selector';
 
-    function createSettingsPanel() {
-        const panel = document.createElement('div');
-        panel.id = 'bilibili-quality-selector';
+            const QUALITIES = [' 自动选择最高画质 ', '8K', '杜比视界','HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P', '480P', '360P']; // 本次更新：移除 720P 60帧选项，该画质似乎已被B站移除
+            QUALITIES.forEach(quality => {
+                const button = document.createElement('button');
+                button.textContent = quality;
+                button.onclick = () => {
+                    userQualitySetting = quality;
+                    GM_setValue('qualitySetting', quality);
+                    userHasChangedQuality = true;
+                    updateQualityButtons(panel);
+                    selectQualityBasedOnSetting();
+                };
+                panel.appendChild(button);
+            });
 
-        const QUALITIES = [' 自动选择最高画质 ', '8K', '杜比视界','HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P', '480P', '360P']; // 本次更新：移除 720P 60帧选项，该画质似乎已被B站移除
-        QUALITIES.forEach(quality => {
-            const button = document.createElement('button');
-            button.textContent = quality;
-            button.onclick = () => {
-                userQualitySetting = quality;
-                GM_setValue('qualitySetting', quality);
-                userHasChangedQuality = true;
+            const hiResButton = document.createElement('button');
+            hiResButton.textContent = 'Hi-Res 音质';
+            hiResButton.onclick = () => {
+                hiResAudioEnabled = !hiResAudioEnabled;
+                GM_setValue('hiResAudio', hiResAudioEnabled);
                 updateQualityButtons(panel);
                 selectQualityBasedOnSetting();
             };
-            panel.appendChild(button);
-        });
+            panel.appendChild(hiResButton);
 
-        const hiResButton = document.createElement('button');
-        hiResButton.textContent = 'Hi-Res 音质';
-        hiResButton.onclick = () => {
-            hiResAudioEnabled = !hiResAudioEnabled;
-            GM_setValue('hiResAudio', hiResAudioEnabled);
+            const dolbyAtmosButton = document.createElement('button');
+            dolbyAtmosButton.textContent = '杜比全景声';
+            dolbyAtmosButton.onclick = () => {
+                dolbyAtmosEnabled = !dolbyAtmosEnabled;
+                GM_setValue('dolbyAtmos', dolbyAtmosEnabled);
+                updateQualityButtons(panel);
+                selectQualityBasedOnSetting();
+            };
+            panel.appendChild(dolbyAtmosButton);
+
+            const takeOverQualityControlButton = document.createElement('button');
+            takeOverQualityControlButton.textContent = '移除清晰度按钮（Beta）';
+            takeOverQualityControlButton.onclick = () => {
+                takeOverQualityControl = !takeOverQualityControl;
+                GM_setValue('takeOverQualityControl', takeOverQualityControl);
+                updateQualityButtons(panel);
+                selectQualityBasedOnSetting();
+            };
+            panel.appendChild(takeOverQualityControlButton);
+
             updateQualityButtons(panel);
-            selectQualityBasedOnSetting();
-        };
-        panel.appendChild(hiResButton);
+            document.body.appendChild(panel);
+        }
 
-        const dolbyAtmosButton = document.createElement('button');
-        dolbyAtmosButton.textContent = '杜比全景声';
-        dolbyAtmosButton.onclick = () => {
-            dolbyAtmosEnabled = !dolbyAtmosEnabled;
-            GM_setValue('dolbyAtmos', dolbyAtmosEnabled);
-            updateQualityButtons(panel);
-            selectQualityBasedOnSetting();
-        };
-        panel.appendChild(dolbyAtmosButton);
+        function updateQualityButtons(panel) {
+            panel.querySelectorAll('button').forEach(button => {
+                button.classList.remove('active');
+                if (button.textContent === userQualitySetting ||
+                    (button.textContent === 'Hi-Res 音质' && hiResAudioEnabled) ||
+                    (button.textContent === '杜比全景声' && dolbyAtmosEnabled) ||
+                    (button.textContent === '移除清晰度按钮（Beta）' && takeOverQualityControl)) {
+                    button.classList.add('active');
+                }
+            });
+        }
 
-        updateQualityButtons(panel);
-        document.body.appendChild(panel);
-    }
+        function toggleSettingsPanel() {
+            let panel = document.getElementById('bilibili-quality-selector');
+            if (!panel) {
+                createSettingsPanel();
+                panel = document.getElementById('bilibili-quality-selector');
+            }
+            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+        }
 
-    function updateQualityButtons(panel) {
-        panel.querySelectorAll('button').forEach(button => {
-            button.classList.remove('active');
-            if (button.textContent === userQualitySetting ||
-                (button.textContent === 'Hi-Res 音质' && hiResAudioEnabled) ||
-                (button.textContent === '杜比全景声' && dolbyAtmosEnabled)) {
-                button.classList.add('active');
+        document.addEventListener('mousedown', function (event) {
+            const panel = document.getElementById('bilibili-quality-selector');
+            if (panel && !panel.contains(event.target)) {
+                panel.style.display = 'none';
             }
         });
-    }
 
-    function toggleSettingsPanel() {
-        let panel = document.getElementById('bilibili-quality-selector');
-        if (!panel) {
-            createSettingsPanel();
-            panel = document.getElementById('bilibili-quality-selector');
-        }
-        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-    }
+        GM_registerMenuCommand("设置画质和音质", toggleSettingsPanel);
 
-    document.addEventListener('mousedown', function (event) {
-        const panel = document.getElementById('bilibili-quality-selector');
-        if (panel && !panel.contains(event.target)) {
-            panel.style.display = 'none';
-        }
-    });
-
-    GM_registerMenuCommand("设置画质和音质", toggleSettingsPanel);
-
-window.onload = function () {
-    let hasElementAppeared = false;
-    const observer = new MutationObserver(function (mutations, me) {
-        const element = document.querySelector('.v-popover-wrap.header-avatar-wrap');
-        if (element) {
-            hasElementAppeared = true; 
-            setTimeout(selectQualityBasedOnSetting, 4000); 
-            console.log(`脚本开始运行，4秒后切换画质`); 
-            me.disconnect(); 
-        }
-    });
-
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-
-    setTimeout(function() {
-        observer.disconnect(); 
-        if (!hasElementAppeared) { 
-            console.error("等待超时，尝试执行中...");
-            selectQualityBasedOnSetting(); 
-        }
-    }, 15000); 
-};
-
-
-    const parentElement = document.body;
-
-    parentElement.addEventListener('click', function(event) {
-        const targetElement = event.target;
-
-        if (targetElement.tagName === 'DIV' || targetElement.tagName === 'P') {
-            if (targetElement.hasAttribute('title') || targetElement.classList.contains('title')) {
-                setTimeout(selectQualityBasedOnSetting, 6000);
-                console.log('页面发生切换:', targetElement.textContent.trim());
+    window.onload = function () {
+        let hasElementAppeared = false;
+        const observer = new MutationObserver(function (mutations, me) {
+            const element = document.querySelector('.v-popover-wrap.header-avatar-wrap');
+            if (element) {
+                hasElementAppeared = true;
+                setTimeout(selectQualityBasedOnSetting, 4000);
+                console.log(`脚本开始运行，4秒后切换画质`);
+                me.disconnect();
             }
-        }
-    });
+        });
 
-})();
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        setTimeout(function() {
+            observer.disconnect();
+            if (!hasElementAppeared) {
+                console.error("等待超时，尝试执行中...");
+                selectQualityBasedOnSetting();
+            }
+        }, 12000);
+    };
+
+
+        const parentElement = document.body;
+
+        parentElement.addEventListener('click', function(event) {
+            const targetElement = event.target;
+
+            if (targetElement.tagName === 'DIV' || targetElement.tagName === 'P') {
+                if (targetElement.hasAttribute('title') || targetElement.classList.contains('title')) {
+                    setTimeout(selectQualityBasedOnSetting, 6000);
+                    console.log('页面发生切换:', targetElement.textContent.trim());
+                }
+            }
+        });
+
+    })();
