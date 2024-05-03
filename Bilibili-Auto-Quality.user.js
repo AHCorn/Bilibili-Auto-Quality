@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      2.5.1
+// @version      2.5.2
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质、无损音频及杜比全景声。
 // @author       安和（AHCorn）
@@ -104,7 +104,7 @@
 
         console.log(`当前视频可用画质:`, availableQualities.map(q => q.name));
 
-        const qualityPreferences = ['8K', '杜比视界', '4K', '1080P 高码率', '1080P 60帧', '1080P', '720P 60帧', '720P', '480P', '360P'];
+        const qualityPreferences = ['8K', '杜比视界', 'HDR', '4K', '1080P 高码率', '1080P 60 帧', '1080P', '720P 60 帧', '720P', '480P', '360P'];
 
         availableQualities.sort((a, b) => {
             const getQualityIndex = (name) => {
