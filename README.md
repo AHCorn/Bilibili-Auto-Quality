@@ -4,11 +4,15 @@
 
 ### **简体中文** / <a href="https://github.com/AHCorn/Bilibili-Auto-Quality/blob/main/README_EN.md"> English </a> 
 
+**⚠ 脚本实现的是自动选择当前用户可选的最高音画质，而不是让非会员用户使用会员选项。**
+
+**🔔 在提交反馈和功能请求前，可先查阅已有反馈 🔗[Github](https://github.com/AHCorn/Bilibili-Auto-Quality/issues) 🔗[Greasy Fork](https://greasyfork.org/zh-CN/scripts/486151-%E5%93%94%E5%93%A9%E5%93%94%E5%93%A9%E8%87%AA%E5%8A%A8%E7%94%BB%E8%B4%A8/feedback)** 
+
+
 自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质、无损音频及杜比全景声。
 
 Automatically unlock and select highest quality,lossless audio,and Dolby Atmos for Bilibili videos.
 
-⚠ 脚本实现的是自动选择当前用户可选的最高音画质，而不是让非会员用户使用会员选项。
 
 ![JavaScript](https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E) 
 
