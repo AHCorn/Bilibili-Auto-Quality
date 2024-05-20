@@ -6,6 +6,10 @@
 
 Automatically unlock and change the quality of video and audio on Bilibili, enabling automatic selection of the highest video quality and lossless audio.
 
+**⚠ The script automatically selects the highest audio-visual quality available to the current user and does not allow non-members to use member options.**
+
+**🔔 Before submitting feedback and feature requests, you can check existing feedback on 🔗[Github](https://github.com/AHCorn/Bilibili-Auto-Quality/issues) 🔗[Greasy Fork](https://greasyfork.org/zh-CN/scripts/486151-%E5%93%94%E5%93%A9%E5%93%94%E5%93%A9%E8%87%AA%E5%8A%A8%E7%94%BB%E8%B4%A8/feedback)**
+
 ![JavaScript](https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E) 
 
 </div>
