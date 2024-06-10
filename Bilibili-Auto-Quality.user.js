@@ -20,6 +20,7 @@
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
 // @updateURL   https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js
+// @downloadURL https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js
 // ==/UserScript==
 
 (function () {
