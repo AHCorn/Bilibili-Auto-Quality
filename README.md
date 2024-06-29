@@ -1,14 +1,14 @@
 
-### **简体中文** / <a href="https://github.com/AHCorn/Bilibili-Auto-Quality/blob/main/README_EN.md"> English </a> 
+
 
 
 <a href="https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js"> ![Bilibili-Auto-Quality](https://socialify.git.ci/AHCorn/Bilibili-Auto-Quality/image?description=1&descriptionEditable=%E8%87%AA%E5%8A%A8%E8%A7%A3%E9%94%81%E5%B9%B6%E6%9B%B4%E6%94%B9%E5%93%94%E5%93%A9%E5%93%94%E5%93%A9%E8%A7%86%E9%A2%91%E7%9A%84%E7%94%BB%E8%B4%A8%E5%92%8C%E9%9F%B3%E8%B4%A8%EF%BC%8C%E5%AE%9E%E7%8E%B0%E8%87%AA%E5%8A%A8%E9%80%89%E6%8B%A9%E6%9C%80%E9%AB%98%E7%94%BB%E8%B4%A8%E3%80%81%E6%97%A0%E6%8D%9F%E9%9F%B3%E9%A2%91%E5%8F%8A%E6%9D%9C%E6%AF%94%E5%85%A8%E6%99%AF%E5%A3%B0%20%E3%80%82&font=Inter&forks=1&issues=1&language=1&name=1&owner=1&pattern=Brick%20Wall&pulls=1&stargazers=1&theme=Auto) </a>
 
 <div align="center">
 
+### **简体中文** | <a href="https://github.com/AHCorn/Bilibili-Auto-Quality/blob/main/README_EN.md"> English </a> 
 
-
-### **⚠ 脚本实现的是自动选择当前用户可选的最高音画质，而不是让非会员用户使用会员选项。**
+### 脚本实现的是自动选择当前用户可选的最高音画质，而不是让非会员用户使用会员选项。
 
 </div>
 
