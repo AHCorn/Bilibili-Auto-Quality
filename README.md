@@ -15,23 +15,6 @@
 <br>
 
 
-## 🔔 不再维护 Greasy Fork
-
-<img width="649" alt="image" src="https://github.com/AHCorn/Bilibili-Auto-Quality/assets/42889600/90bcc882-11ad-407f-97ac-90b2d9903394">
-
-
-<img width="676" alt="image" src="https://github.com/AHCorn/Bilibili-Auto-Quality/assets/42889600/ed6fd82c-f1fd-448e-9f21-b98afb253f80">
-
-有些...不知道该说什么，不想再解答常识，以及已经反复强调过的问题，尤其是一些缺乏友善的提问。
-
-Github 源码会继续更新，且持续接受反馈，脚本只是我自用的，希望筛选一些不会手动配置的用户，也节省些我的时间。
-
-没有选择永久删除，所以下次自动更新会导致脚本代码为空，需要您从 Github [重新安装](https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js)，所以暂挂此提示一段时间，抱歉给您带来不便。
-
-
-
-
-<br>
 
 ## 🗄 预览
 
