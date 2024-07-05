@@ -4,8 +4,6 @@
 
 ###  **简体中文** | <a href="https://github.com/AHCorn/Bilibili-Auto-Quality/blob/main/README_EN.md"> English </a> 
 
-### 脚本实现的是自动选择当前用户可选的最高音画质，而不是让非会员用户使用会员选项。
-
 </div>
 
 <br>
@@ -30,6 +28,7 @@
 
 ## ⭐ 特性
 
+### 脚本实现的是自动选择当前用户可选的最高音画质，而不是让非会员用户使用会员选项。
 
 1. 整合 [Bilibili 解锁杜比全景声 & 8K &开启 HDR &直播画质PRO](https://greasyfork.org/zh-TW/scripts/441403) 的解锁功能。
 
@@ -37,7 +36,7 @@
    
 3. 拥有独立的设置面板，用户可自定义默认画质。
    
-4. 支持自动开关无损音频
+4. 支持自动开关无损音频、杜比全景声。
 
 <br>
 
