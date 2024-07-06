@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      3.0
+// @version      3.0.1
 // @license      GPL-3.0
-// @description  自动解锁并更改哔哩哔哩视频的画质和音质,实现自动选择最高画质、无损音频及杜比全景声。
+// @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质、无损音频及杜比全景声。
 // @author       安和（AHCorn）
 // @icon         https://www.bilibili.com/favicon.ico
 // @match        *://www.bilibili.com/video/*
@@ -565,7 +565,7 @@
                 checkVipStatus();
                 selectQualityBasedOnSetting();
                 updateQualityButtons(document.getElementById('bilibili-quality-selector'));
-// @grant GM_addStyle
+            }
         }, 12000);
     };
 
@@ -591,7 +591,7 @@
         if (targetElement.classList.contains('b-img')) {
             isLoading = true;
             updateQualityButtons(document.getElementById('bilibili-quality-selector'));
-           setTimeout(()=>{
+            setTimeout(() => {
                 isLoading = false;
                 checkVipStatus();
                 selectQualityBasedOnSetting();
