@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚙ [Bilibili-Auto-Quality](https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js)
+# <img src="https://www.bilibili.com/favicon.ico" width="30" height="30" style="vertical-align: text-bottom;"> [Bilibili-Auto-Quality](https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js)
 
 **简体中文** | [English](https://github.com/AHCorn/Bilibili-Auto-Quality/blob/main/README_EN.md)
 
