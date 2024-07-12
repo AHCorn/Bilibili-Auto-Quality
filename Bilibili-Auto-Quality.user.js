@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      3.0.1
+// @version      3.0.2
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质，实现自动选择最高画质、无损音频及杜比全景声。
 // @author       安和（AHCorn）
@@ -275,8 +275,7 @@
                 name: item.textContent.trim(),
                 element: item,
                 isVipOnly: !!item.querySelector('.bpx-player-ctrl-quality-badge-bigvip')
-            }))
-            .filter(quality => isVipUser || !quality.isVipOnly);
+            }));
 
         console.log(`当前视频可用画质:`, availableQualities.map(q => q.name));
 
@@ -295,8 +294,12 @@
         });
 
         let targetQuality;
-        if (userQualitySetting === '最高画质' || (!isVipUser && ['8K', '杜比视界', 'HDR', '4K', '1080P 高码率', '1080P 60 帧'].includes(userQualitySetting))) {
-            targetQuality = availableQualities[0];
+        if (userQualitySetting === '最高画质') {
+            if (isVipUser) {
+                targetQuality = availableQualities.find(quality => quality.isVipOnly) || availableQualities[0];
+            } else {
+                targetQuality = availableQualities.find(quality => !quality.isVipOnly);
+            }
         } else if (userQualitySetting === '默认') {
             console.log('使用默认画质');
             return;
@@ -304,7 +307,7 @@
             targetQuality = availableQualities.find(quality => quality.name.includes(userQualitySetting));
             if (!targetQuality) {
                 console.log(`未找到目标画质 ${userQualitySetting}, 将选择最高可用画质`);
-                targetQuality = availableQualities[0];
+                targetQuality = isVipUser ? (availableQualities.find(quality => quality.isVipOnly) || availableQualities[0]) : availableQualities.find(quality => !quality.isVipOnly);
             }
         }
 
@@ -356,7 +359,7 @@
         updateWarnings();
     }
 
-    function createSettingsPanel() {
+function createSettingsPanel() {
         const panel = document.createElement('div');
         panel.id = 'bilibili-quality-selector';
 
