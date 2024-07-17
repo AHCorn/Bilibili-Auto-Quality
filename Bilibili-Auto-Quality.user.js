@@ -27,7 +27,7 @@
     'use strict';
 
     Object.defineProperty(navigator, 'userAgent', {
-        value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15"
+        value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
     });
 
     window.localStorage['bilibili_player_force_DolbyAtmos&8K&HDR'] = 1;
