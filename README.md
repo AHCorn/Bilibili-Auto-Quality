@@ -25,8 +25,10 @@
 
   
 <div align="center">
-    <img src="https://github.com/AHCorn/Bilibili-Auto-Quality/assets/42889600/b00089b4-34d5-4279-872a-e2cb7ce6c7b8" alt="会员用户" style="height: 600px;width: auto;">
-   <img src="https://github.com/AHCorn/Bilibili-Auto-Quality/assets/42889600/c1d9caf8-0464-40b7-bf44-bd6625afb937" alt ="普通用户" style="height:600px;width:auto;">
+
+![image](https://github.com/user-attachments/assets/54300c77-3c21-47bf-8483-680f4f9462b5)
+
+
 </div>
 
 
