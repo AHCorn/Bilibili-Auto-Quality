@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      3.1.0
+// @version      3.1.1
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -650,7 +650,7 @@
     const updatePanel = () => {
       const qualityCandidates =
         unsafeWindow.livePlayer.getPlayerInfo().qualityCandidates;
-      const LIVE_QUALITIES = ["原画", "超清", "高清"];
+      const LIVE_QUALITIES = ["原画", "蓝光","超清", "高清"];
 
       const lineSelector = document.querySelector(".YccudlUCmLKcUTg_yzKN");
       const lines = lineSelector
@@ -737,7 +737,7 @@
       );
 
       if (!targetQuality) {
-        const qualityPriority = ["原画", "超清", "高清"];
+        const qualityPriority = ["原画", "蓝光", "超清", "高清"];
         for (let quality of qualityPriority) {
           targetQuality = qualityCandidates.find((q) => q.desc === quality);
           if (targetQuality) break;
