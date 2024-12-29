@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      3.1.1
+// @version      3.1.2
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -306,7 +306,7 @@
       "HDR",
       "4K",
       "1080P 高码率",
-      "1080P 60 帧",
+      "1080P 60帧",
       "1080P 高清",
       "720P",
       "480P",
