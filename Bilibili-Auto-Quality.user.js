@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      3.2
+// @version      3.2.1
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -522,6 +522,7 @@
       name: item.textContent.trim(),
       element: item,
       isVipOnly: !!item.querySelector(".bpx-player-ctrl-quality-badge-bigvip"),
+      isFreeNow: !!item.querySelector(".bpx-player-ctrl-quality-badge-bigvip")?.textContent.includes("限免中")
     }));
 
     console.log(
@@ -558,14 +559,11 @@
 
     let targetQuality;
     if (userQualitySetting === "最高画质") {
-      if (isVipUser) {
-        targetQuality =
-          availableQualities.find((quality) => quality.isVipOnly) ||
-          availableQualities[0];
+      const hasFreeVipQualities = availableQualities.some(quality => quality.isFreeNow);
+      if (isVipUser || hasFreeVipQualities) {
+        targetQuality = availableQualities[0];
       } else {
-        targetQuality = availableQualities.find(
-          (quality) => !quality.isVipOnly
-        );
+        targetQuality = availableQualities.find(quality => !quality.isVipOnly);
       }
     } else if (userQualitySetting === "默认") {
       console.log("使用默认画质");
