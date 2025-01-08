@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      3.2.1
+// @version      3.5
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -30,16 +30,36 @@
     unsafeWindow = window;
   }
 
-  try {
-    Object.defineProperty(navigator, 'userAgent', {
-      value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
-      configurable: true
-    });
-  } catch (e) {
-    console.log('修改 UserAgent 失败，解锁功能可能失效，若需要使用解锁功能，请先关闭与修改 UA 相关的插件及脚本');
-  }
+  let hiResAudioEnabled = GM_getValue("hiResAudio", false);
+  let dolbyAtmosEnabled = GM_getValue("dolbyAtmos", false);
+  let userQualitySetting = GM_getValue("qualitySetting", "最高画质");
+  let userHasChangedQuality = false;
+  let takeOverQualityControl = GM_getValue("takeOverQualityControl", false);
+  let isVipUser = false;
+  let vipStatusChecked = false;
+  let isLoading = true;
+  let isLivePage = false;
+  let userLiveQualitySetting = GM_getValue("liveQualitySetting", "原画");
 
-  window.localStorage["bilibili_player_force_DolbyAtmos&8K&HDR"] = 1;
+  // 开发者模式用的变量，仅供测试
+  let devModeEnabled = GM_getValue("devModeEnabled", false);
+  let devModeVipStatus = GM_getValue("devModeVipStatus", false);
+  let devModeDelay = GM_getValue("devModeDelay", 4000);
+  let devModeDisableUA = GM_getValue("devModeDisableUA", false);
+
+  try {
+    if (!devModeDisableUA || !devModeEnabled) {
+      Object.defineProperty(navigator, 'userAgent', {
+        value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+        configurable: true
+      });
+      console.log('UA 修改成功');
+    } else {
+      console.log('开发者模式已禁用 UA 修改');
+    }
+  } catch (error) {
+    console.error('修改 UserAgent 失败，解锁功能可能失效，若需要使用解锁功能，请先关闭与修改 UA 相关的插件及脚本：', error);
+  }
 
   GM_addStyle(`
         #bilibili-quality-selector, #bilibili-live-quality-selector {
@@ -267,35 +287,215 @@
             content: "";
             margin-right: 10px;
         }
-    `);
 
-  let hiResAudioEnabled = GM_getValue("hiResAudio", false);
-  let dolbyAtmosEnabled = GM_getValue("dolbyAtmos", false);
-  let userQualitySetting = GM_getValue("qualitySetting", "最高画质");
-  let userHasChangedQuality = false;
-  let takeOverQualityControl = GM_getValue("takeOverQualityControl", false);
-  let isVipUser = false;
-  let vipStatusChecked = false;
-  let isLoading = true;
-  let isLivePage = false;
-  let userLiveQualitySetting = GM_getValue("liveQualitySetting", "原画");
+        /* 开发者模式面板样式 */
+        #bilibili-dev-settings {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+            border-radius: 24px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 32px;
+            width: 90%;
+            max-width: 420px;
+            display: none;
+            z-index: 10000;
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+        }
+
+        #bilibili-dev-settings.show {
+            display: block;
+            animation: fadeIn 0.3s ease-out, slideIn 0.3s ease-out;
+        }
+
+        #bilibili-dev-settings h2 {
+            margin: 0 0 24px;
+            color: #f25d8e;
+            font-size: 28px;
+            text-align: center;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 4px rgba(242, 93, 142, 0.1);
+        }
+
+        #bilibili-dev-settings .dev-warning {
+            background: linear-gradient(135deg, #fff1f5, #fce8e6);
+            color: #d93025;
+            padding: 14px 18px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+            border: 2px solid rgba(217, 48, 37, 0.1);
+            box-shadow: 0 4px 12px rgba(217, 48, 37, 0.05);
+        }
+
+        #bilibili-dev-settings .toggle-switch {
+            background: #f8f9fa;
+            border-radius: 16px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        #bilibili-dev-settings .toggle-switch:hover {
+            background: #f1f3f4;
+            transform: translateY(-1px);
+            border-color: rgba(242, 93, 142, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        #bilibili-dev-settings .toggle-switch label {
+            font-size: 15px;
+            font-weight: 600;
+            color: #3c4043;
+        }
+
+        #bilibili-dev-settings .input-group {
+            background: #f8f9fa;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        #bilibili-dev-settings .input-group:hover {
+            background: #f1f3f4;
+            border-color: rgba(242, 93, 142, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        #bilibili-dev-settings .input-group label {
+            display: block;
+            margin-bottom: 12px;
+            color: #3c4043;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        #bilibili-dev-settings .input-group input[type="number"] {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #dadce0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            color: #3c4043;
+            transition: all 0.3s ease;
+            background: #ffffff;
+            -moz-appearance: textfield;
+        }
+
+        #bilibili-dev-settings .input-group input[type="number"]::-webkit-outer-spin-button,
+        #bilibili-dev-settings .input-group input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        #bilibili-dev-settings .input-group input[type="number"]:hover {
+            border-color: #f25d8e;
+            box-shadow: 0 2px 8px rgba(242, 93, 142, 0.1);
+        }
+
+        #bilibili-dev-settings .input-group input[type="number"]:focus {
+            border-color: #f25d8e;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(242, 93, 142, 0.15);
+            background: #ffffff;
+        }
+
+        #bilibili-dev-settings .input-group input[type="number"]:disabled {
+            background: #f1f3f4;
+            cursor: not-allowed;
+            opacity: 0.7;
+            border-color: #dadce0;
+            box-shadow: none;
+        }
+
+        #bilibili-dev-settings .switch {
+            position: relative;
+            width: 56px;
+            height: 30px;
+            flex-shrink: 0;
+        }
+
+        #bilibili-dev-settings .slider {
+            background-color: #dadce0;
+            border-radius: 34px;
+            transition: all 0.3s ease;
+        }
+
+        #bilibili-dev-settings .slider:before {
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #bilibili-dev-settings input:checked + .slider {
+            background-color: #f25d8e;
+        }
+
+        #bilibili-dev-settings input:checked + .slider:before {
+            transform: translateX(26px);
+            box-shadow: 0 2px 4px rgba(242, 93, 142, 0.2);
+        }
+
+        #bilibili-dev-settings input:disabled + .slider {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #bilibili-dev-settings input:disabled + .slider:before {
+            box-shadow: none;
+        }
+
+        @media (max-width: 480px) {
+            #bilibili-dev-settings {
+                width: 95%;
+                padding: 24px;
+            }
+
+            #bilibili-dev-settings .toggle-switch,
+            #bilibili-dev-settings .input-group {
+                padding: 14px 16px;
+            }
+        }
+    `);
 
   function checkIfLivePage() {
     isLivePage = window.location.href.includes("live.bilibili.com");
   }
 
   function checkVipStatus() {
-    const vipElement = document.querySelector(
-      ".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip"
-    );
-    const currentQuality = document.querySelector(
-      ".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text"
-    );
-    isVipUser =
-      vipElement !== null ||
-      (currentQuality && currentQuality.textContent.includes("大会员"));
-    vipStatusChecked = true;
-    console.log(`用户是否为大会员: ${isVipUser ? "是" : "否"}`);
+    if (devModeEnabled) {
+      isVipUser = devModeVipStatus;
+      vipStatusChecked = true;
+      console.log(`开发者模式：用户是否为大会员: ${isVipUser ? "是" : "否"}`);
+    } else {
+      const vipElement = document.querySelector(
+        ".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip"
+      );
+      const currentQuality = document.querySelector(
+        ".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text"
+      );
+      isVipUser =
+        vipElement !== null ||
+        (currentQuality && currentQuality.textContent.includes("大会员"));
+      vipStatusChecked = true;
+      console.log(`用户是否为大会员: ${isVipUser ? "是" : "否"}`);
+    }
     updateQualityButtons(document.getElementById("bilibili-quality-selector"));
   }
 
@@ -441,7 +641,7 @@
             "HDR",
             "4K",
             "1080P 高码率",
-            "1080P 60 帧",
+            "1080P 60帧",
           ].includes(userQualitySetting)
         ) {
           button.classList.add("vip-quality");
@@ -470,7 +670,7 @@
 
     if (
       !isVipUser &&
-      ["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60 帧"].includes(
+      ["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧"].includes(
         userQualitySetting
       )
     ) {
@@ -536,9 +736,9 @@
       "HDR",
       "4K",
       "1080P 高码率",
-      "1080P 60 帧",
+      "1080P 60帧",
       "1080P 高清",
-      "720P 60 帧",
+      "720P 60帧",
       "720P",
       "480P",
       "360P",
@@ -852,19 +1052,16 @@
   document.addEventListener("mousedown", function (event) {
     const panel = document.getElementById("bilibili-quality-selector");
     const livePanel = document.getElementById("bilibili-live-quality-selector");
-    if (
-      panel &&
-      !panel.contains(event.target) &&
-      panel.classList.contains("show")
-    ) {
-      panel.classList.remove("show");
+    const devPanel = document.getElementById("bilibili-dev-settings");
+
+    if (panel && !panel.contains(event.target) && panel.classList.contains("show")) {
+        panel.classList.remove("show");
     }
-    if (
-      livePanel &&
-      !livePanel.contains(event.target) &&
-      livePanel.classList.contains("show")
-    ) {
-      livePanel.classList.remove("show");
+    if (livePanel && !livePanel.contains(event.target) && livePanel.classList.contains("show")) {
+        livePanel.classList.remove("show");
+    }
+    if (devPanel && !devPanel.contains(event.target) && devPanel.classList.contains("show")) {
+        devPanel.classList.remove("show");
     }
   });
 
@@ -876,6 +1073,8 @@
       toggleSettingsPanel();
     }
   });
+
+  GM_registerMenuCommand("开发者选项", toggleDevSettingsPanel);
 
   window.addEventListener("load", () => {
     if (isLivePage) {
@@ -906,8 +1105,8 @@
             updateQualityButtons(
               document.getElementById("bilibili-quality-selector")
             );
-          }, 4000);
-          console.log("脚本开始运行，4秒后切换画质");
+          }, devModeEnabled ? devModeDelay : 4000);
+          console.log(`脚本开始运行，${devModeEnabled ? devModeDelay/1000 : 4}秒后切换画质`);
           me.disconnect();
         }
       });
@@ -954,7 +1153,7 @@
             updateQualityButtons(
               document.getElementById("bilibili-quality-selector")
             );
-          }, 5000);
+          }, devModeEnabled ? devModeDelay : 5000);
           console.log(
             "视频标题点击事件，页面发生切换:",
             targetElement.textContent.trim()
@@ -974,9 +1173,107 @@
           updateQualityButtons(
             document.getElementById("bilibili-quality-selector")
           );
-        }, 5000);
+        }, devModeEnabled ? devModeDelay : 5000);
         console.log("封面点击事件，页面发生切换");
       }
     }
   });
+
+  function createDevSettingsPanel() {
+    const panel = document.createElement("div");
+    panel.id = "bilibili-dev-settings";
+
+    panel.innerHTML = `
+        <h2>开发者设置</h2>
+        <div class="dev-warning">以下选项的错误配置可能会影响脚本正常工作</div>
+        <div class="toggle-switch">
+            <label for="dev-mode">开发者模式</label>
+            <label class="switch">
+                <input type="checkbox" id="dev-mode" ${devModeEnabled ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="toggle-switch">
+            <label for="dev-vip">模拟大会员状态</label>
+            <label class="switch">
+                <input type="checkbox" id="dev-vip" ${devModeVipStatus ? 'checked' : ''} ${!devModeEnabled ? 'disabled' : ''}>
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="toggle-switch">
+            <label for="dev-ua">禁用 UA 修改</label>
+            <label class="switch">
+                <input type="checkbox" id="dev-ua" ${devModeDisableUA ? 'checked' : ''} ${!devModeEnabled ? 'disabled' : ''}>
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="input-group">
+            <label for="dev-delay">执行延迟 (毫秒)</label>
+            <input type="number" id="dev-delay" value="${devModeDelay}" min="0" max="10000" step="100" ${!devModeEnabled ? 'disabled' : ''}>
+        </div>
+        <div id="dev-warning" class="warning" style="display: none;"></div>
+    `;
+
+    document.body.appendChild(panel);
+
+    panel.querySelector('#dev-mode').addEventListener('change', (e) => {
+        devModeEnabled = e.target.checked;
+        GM_setValue("devModeEnabled", devModeEnabled);
+
+        const vipSwitch = panel.querySelector('#dev-vip');
+        const uaSwitch = panel.querySelector('#dev-ua');
+        const delayInput = panel.querySelector('#dev-delay');
+        const warning = panel.querySelector('#dev-warning');
+
+        vipSwitch.disabled = !devModeEnabled;
+        uaSwitch.disabled = !devModeEnabled;
+        delayInput.disabled = !devModeEnabled;
+
+        if (!devModeEnabled) {
+            vipStatusChecked = false;
+            checkVipStatus();
+            if (devModeDisableUA) {
+                warning.textContent = "开发者模式已关闭，UA 修改将在刷新页面后恢复";
+                warning.style.display = "block";
+            }
+        } else {
+            warning.style.display = "none";
+        }
+    });
+
+    panel.querySelector('#dev-vip').addEventListener('change', (e) => {
+        devModeVipStatus = e.target.checked;
+        GM_setValue("devModeVipStatus", devModeVipStatus);
+        if (devModeEnabled) {
+            isVipUser = devModeVipStatus;
+            vipStatusChecked = true;
+            updateQualityButtons(document.getElementById("bilibili-quality-selector"));
+        }
+    });
+
+    panel.querySelector('#dev-ua').addEventListener('change', (e) => {
+        devModeDisableUA = e.target.checked;
+        GM_setValue("devModeDisableUA", devModeDisableUA);
+        const warning = panel.querySelector('#dev-warning');
+        warning.textContent = devModeDisableUA ?
+            "UA 修改已禁用，请刷新页面生效" :
+            "UA 修改已启用，请刷新页面生效";
+        warning.style.display = "block";
+    });
+
+    panel.querySelector('#dev-delay').addEventListener('change', (e) => {
+        devModeDelay = parseInt(e.target.value);
+        GM_setValue("devModeDelay", devModeDelay);
+    });
+
+    return panel;
+  }
+
+  function toggleDevSettingsPanel() {
+    let panel = document.getElementById("bilibili-dev-settings");
+    if (!panel) {
+        panel = createDevSettingsPanel();
+    }
+    panel.classList.toggle("show");
+  }
 })();
