@@ -34,7 +34,7 @@
 
 1. 整合 [Bilibili 解锁杜比全景声 & 8K &开启 HDR &直播画质PRO](https://greasyfork.org/zh-TW/scripts/441403) 的解锁功能。
 
-2. 借鉴  [Bilibili - 自动切换直播画质至最高画质](https://greasyfork.org/zh-CN/scripts/467427-bilibili-%E8%87%AA%E5%8A%A8%E5%88%87%E6%8D%A2%E7%9B%B4%E6%92%AD%E7%94%BB%E8%B4%A8%E8%87%B3%E6%9C%80%E9%AB%98%E7%94%BB%E8%B4%A8/code) 切换逻辑的画质面板可实现自动直播原画。
+2. 借鉴  [Bilibili - 自动切换直播画质至最高画质](https://greasyfork.org/zh-CN/scripts/467427-bilibili-%E8%87%AA%E5%8A%A8%E5%88%87%E6%8D%A2%E7%9B%B4%E6%92%AD%E7%94%BB%E8%B4%A8%E8%87%B3%E6%9C%80%E9%AB%98%E7%94%BB%E8%B4%A8/code) 的切换逻辑，实现直播画质/线路面板。
 
 3. 根据用户是否为大会员来自动选择当前视频的最高画质。
    
