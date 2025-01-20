@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      4.0-Beta
+// @version      4.1
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -77,7 +77,7 @@
   }
 
   GM_addStyle(`
-        #bilibili-quality-selector, #bilibili-live-quality-selector {
+        #bilibili-quality-selector, #bilibili-live-quality-selector, #bilibili-dev-settings {
             position: fixed;
             top: 50%;
             left: 50%;
@@ -88,10 +88,15 @@
             padding: 30px;
             width: 90%;
             max-width: 400px;
+            max-height: 85vh;
+            overflow-y: auto;
+            overflow-x: hidden;
             display: none;
             z-index: 10000;
             font-family: 'Segoe UI', 'Roboto', sans-serif;
             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0, 161, 214, 0.3) transparent;
         }
 
         .quality-tabs {
@@ -301,17 +306,121 @@
         }
 
         @media (max-width: 480px) {
-            #bilibili-quality-selector, #bilibili-live-quality-selector {
+            #bilibili-quality-selector, #bilibili-live-quality-selector, #bilibili-dev-settings {
                 width: 95%;
-                padding: 25px;
+                padding: 20px;
+                max-height: 80vh;
             }
 
             .quality-group {
                 grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
             }
 
             .line-group {
                 grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .quality-button, .line-button {
+                padding: 8px 6px;
+                font-size: 13px;
+            }
+
+            .live-quality-button {
+                padding: 10px 6px;
+                font-size: 14px;
+            }
+
+            .toggle-switch {
+                padding: 8px 12px;
+                margin-bottom: 8px;
+            }
+
+            .toggle-switch label {
+                font-size: 14px;
+            }
+
+            .toggle-switch .description {
+                font-size: 12px;
+            }
+
+            .input-group {
+                padding: 12px;
+                margin-bottom: 12px;
+            }
+
+            .input-group label {
+                font-size: 14px;
+            }
+
+            .input-group .description {
+                font-size: 12px;
+            }
+
+            .input-group input[type="number"] {
+                width: 70px;
+                padding: 6px;
+                font-size: 13px;
+            }
+
+            .github-link {
+                top: 20px;
+                right: 20px;
+                width: 20px;
+                height: 20px;
+            }
+
+            h2 {
+                font-size: 24px !important;
+                margin-bottom: 15px !important;
+            }
+
+            .dev-warning {
+                font-size: 13px;
+                padding: 12px;
+                margin-bottom: 15px;
+            }
+
+            .warning {
+                font-size: 13px;
+                padding: 8px;
+                margin: 8px 0;
+            }
+
+            .status-bar {
+                font-size: 13px;
+                padding: 8px;
+                margin-bottom: 12px;
+            }
+
+            .quality-section-title {
+                font-size: 15px;
+                margin: 15px 0 12px;
+            }
+
+            .quality-section-description {
+                font-size: 12px;
+                margin: -3px 0 12px;
+            }
+        }
+
+        @media (max-height: 600px) {
+            #bilibili-quality-selector, #bilibili-live-quality-selector, #bilibili-dev-settings {
+                max-height: 90vh;
+                padding: 15px;
+            }
+
+            .quality-group, .line-group {
+                margin-bottom: 15px;
+            }
+
+            .toggle-switch {
+                margin-bottom: 6px;
+            }
+
+            .input-group {
+                margin-bottom: 10px;
             }
         }
 
@@ -362,9 +471,14 @@
             padding: 32px;
             width: 90%;
             max-width: 420px;
+            max-height: 85vh;
+            overflow-y: auto;
+            overflow-x: hidden;
             display: none;
             z-index: 10000;
             font-family: 'Segoe UI', 'Roboto', sans-serif;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0, 161, 214, 0.3) transparent;
         }
 
         #bilibili-dev-settings.show {
@@ -563,6 +677,7 @@
             height: 100%;
             opacity: 0.9;
             transition: opacity 0.3s ease;
+            position: relative;
         }
 
         .quality-settings-btn:hover {
@@ -582,6 +697,28 @@
             width: 100%;
             height: 100%;
             stroke: #ffffff;
+        }
+
+        .quality-settings-btn::after {
+            content: "自动画质面板";
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(21, 21, 21, 0.9);
+            color: #fff;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            margin-bottom: 5px;
+        }
+
+        .quality-settings-btn:hover::after {
+            opacity: 1;
         }
 
         .github-link {
@@ -651,6 +788,13 @@
             color: white;
             border-color: #00a1d6;
             box-shadow: 0 6px 12px rgba(0, 161, 214, 0.3);
+        }
+
+        #bilibili-quality-selector,
+        #bilibili-live-quality-selector,
+        #bilibili-dev-settings {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
     `);
 
@@ -1504,41 +1648,58 @@
     }
   }
 
-  function toggleSettingsPanel() {
-    let panel = document.getElementById("bilibili-quality-selector");
+  function togglePanel(panelId, createPanelFunc, updateFunc) {
+    let panel = document.getElementById(panelId);
     if (!panel) {
-      createSettingsPanel();
-      panel = document.getElementById("bilibili-quality-selector");
+      createPanelFunc();
+      panel = document.getElementById(panelId);
     }
-    panel.classList.toggle("show");
-    updateQualityButtons(panel);
+
+    const handleOutsideClick = (event) => {
+      if (panel && !panel.contains(event.target)) {
+        panel.classList.remove("show");
+        document.removeEventListener("mousedown", handleOutsideClick);
+      }
+    };
+
+    if (!panel.classList.contains("show")) {
+      ["bilibili-quality-selector", "bilibili-live-quality-selector", "bilibili-dev-settings"].forEach(id => {
+        if (id !== panelId) {
+          const otherPanel = document.getElementById(id);
+          if (otherPanel?.classList.contains("show")) {
+            otherPanel.classList.remove("show");
+          }
+        }
+      });
+
+      panel.classList.add("show");
+      document.addEventListener("mousedown", handleOutsideClick);
+    } else {
+      panel.classList.remove("show");
+      document.removeEventListener("mousedown", handleOutsideClick);
+    }
+
+    if (updateFunc) {
+      updateFunc(panel);
+    }
+  }
+
+  function toggleSettingsPanel() {
+    togglePanel("bilibili-quality-selector", createSettingsPanel, updateQualityButtons);
   }
 
   function toggleLiveSettingsPanel() {
-    let panel = document.getElementById("bilibili-live-quality-selector");
-    if (!panel) {
-      createLiveSettingsPanel();
-      panel = document.getElementById("bilibili-live-quality-selector");
-    }
-    panel.classList.toggle("show");
-    updateLiveSettingsPanel();
+    togglePanel("bilibili-live-quality-selector", createLiveSettingsPanel, updateLiveSettingsPanel);
   }
 
-  document.addEventListener("mousedown", function (event) {
-    const panel = document.getElementById("bilibili-quality-selector");
-    const livePanel = document.getElementById("bilibili-live-quality-selector");
-    const devPanel = document.getElementById("bilibili-dev-settings");
-
-    if (panel && !panel.contains(event.target) && panel.classList.contains("show")) {
-        panel.classList.remove("show");
-    }
-    if (livePanel && !livePanel.contains(event.target) && livePanel.classList.contains("show")) {
-        livePanel.classList.remove("show");
-    }
-    if (devPanel && !devPanel.contains(event.target) && devPanel.classList.contains("show")) {
-        devPanel.classList.remove("show");
-    }
-  });
+  function toggleDevSettingsPanel() {
+    togglePanel("bilibili-dev-settings", createDevSettingsPanel, panel => {
+      const removeQualityButton = panel.querySelector('#remove-quality-button');
+      if (removeQualityButton) {
+        removeQualityButton.checked = takeOverQualityControl;
+      }
+    });
+  }
 
   GM_registerMenuCommand("设置面板", () => {
     checkIfLivePage();
@@ -1573,12 +1734,14 @@
           vipIcon: '.bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip',
           qualityMenu: '.bpx-player-ctrl-quality-menu',
           qualityMenuItem: '.bpx-player-ctrl-quality-menu-item',
-          activeQuality: '.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text'
+          activeQuality: '.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text',
+          controlBottomRight: '.bpx-player-control-bottom-right'
         },
         elements: {
           qualitySelector: null,
           playerControls: null,
-          headerAvatar: null
+          headerAvatar: null,
+          controlBottomRight: null
         },
         get: function(key) {
           if (!this.elements[key]) {
@@ -1594,7 +1757,8 @@
           this.elements = {
             qualitySelector: null,
             playerControls: null,
-            headerAvatar: null
+            headerAvatar: null,
+            controlBottomRight: null
           };
         }
       };
@@ -1607,9 +1771,12 @@
       };
 
       const initQualitySettingsButton = () => {
+        const controlBottomRight = DOM.get('controlBottomRight');
         const qualityControl = DOM.get('qualityControl');
-        if (qualityControl && injectQualityButton) {
-          if (!qualityControl.previousElementSibling?.classList.contains('quality-settings-btn')) {
+
+        if (controlBottomRight && qualityControl && injectQualityButton) {
+          const existingSettingsBtn = controlBottomRight.querySelector('.quality-settings-btn');
+          if (!existingSettingsBtn) {
             const settingsButton = document.createElement('div');
             settingsButton.className = 'bpx-player-ctrl-btn quality-settings-btn';
             settingsButton.innerHTML = `
@@ -1624,6 +1791,10 @@
             `;
             settingsButton.addEventListener('click', toggleSettingsPanel);
             qualityControl.parentElement.insertBefore(settingsButton, qualityControl);
+
+            if (playerControlsObserver) {
+              playerControlsObserver.disconnect();
+            }
           }
         }
       };
@@ -1970,18 +2141,6 @@
     });
 
     return panel;
-  }
-
-  function toggleDevSettingsPanel() {
-    let panel = document.getElementById("bilibili-dev-settings");
-    if (!panel) {
-        panel = createDevSettingsPanel();
-    }
-    const removeQualityButton = panel.querySelector('#remove-quality-button');
-    if (removeQualityButton) {
-        removeQualityButton.checked = takeOverQualityControl;
-    }
-    panel.classList.toggle("show");
   }
 
   const initializeQualitySettings = () => {
