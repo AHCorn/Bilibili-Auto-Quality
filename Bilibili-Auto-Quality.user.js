@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      4.6
+// @version      4.7-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -45,6 +45,7 @@
         userLiveQualitySetting: GM_getValue("liveQualitySetting", "原画"),
         devModeEnabled: GM_getValue("devModeEnabled", false),
         devModeVipStatus: GM_getValue("devModeVipStatus", false),
+        devModeNoLoginStatus: GM_getValue("devModeNoLoginStatus", false),
         devModeDisableUA: GM_getValue("devModeDisableUA", false),
         devModeAudioRetries: GM_getValue("devModeAudioRetries", 2),
         devModeAudioDelay: GM_getValue("devModeAudioDelay", 4000),
@@ -1098,6 +1099,15 @@
         if (state.disableHDROption) {
             availableQualities = availableQualities.filter(q => q.name.indexOf("HDR") === -1);
         }
+        
+        // 未登录模式下过滤掉高于1080P的画质
+        if (state.devModeEnabled && state.devModeNoLoginStatus) {
+            availableQualities = availableQualities.filter(q => {
+                const name = q.name.trim();
+                return !name.includes("8K") && !name.includes("杜比视界") && !name.includes("HDR") && !name.includes("4K");
+            });
+            console.log("[未登录模式] 已过滤高于1080P的画质，可用画质:", availableQualities.map(q => q.name));
+        }
 
         console.log("[画质设置] 可用画质:", availableQualities.map(q => q.name));
         console.log("[画质设置] 会员状态:", state.isVipUser ? "是" : "否");
@@ -1343,6 +1353,16 @@
             </label>
           </div>
           <div class="toggle-switch">
+            <label for="dev-no-login">
+              未登录模式
+              <div class="description">启用后不等待头像加载，默认最高画质1080P</div>
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="dev-no-login" ${state.devModeNoLoginStatus ? 'checked' : ''} ${!state.devModeEnabled ? 'disabled' : ''}>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-switch">
             <label for="dev-ua">
               禁用 UA 修改
               <div class="description">禁用后部分旧版本浏览器可能无法解锁画质</div>
@@ -1429,6 +1449,10 @@
         panel.querySelector('#dev-vip').addEventListener('change', function (e) {
             state.devModeVipStatus = e.target.checked;
             GM_setValue("devModeVipStatus", state.devModeVipStatus);
+        });
+        panel.querySelector('#dev-no-login').addEventListener('change', function (e) {
+            state.devModeNoLoginStatus = e.target.checked;
+            GM_setValue("devModeNoLoginStatus", state.devModeNoLoginStatus);
         });
         panel.querySelector('#dev-ua').addEventListener('change', function (e) {
             state.devModeDisableUA = e.target.checked;
@@ -1563,6 +1587,19 @@
             }
 
             const vipCheckObserver = new MutationObserver((mutations, observer) => {
+                // 未登录模式不等待头像元素
+                if (state.devModeEnabled && state.devModeNoLoginStatus) {
+                    observer.disconnect();
+                    console.log("[未登录模式] 跳过等待头像元素，直接执行画质设置");
+                    waitForPlayerWithBackoff(async () => {
+                        state.isLoading = false;
+                        await checkVipStatusAsync();
+                        await selectVideoQuality();
+                        updateQualityButtons(Utils.query("#bilibili-quality-selector"));
+                    }, 5, 1000, 0);
+                    return;
+                }
+                
                 const headerAvatar = document.querySelector(".v-popover-wrap.header-avatar-wrap");
                 if (headerAvatar) {
                     observer.disconnect();
@@ -1621,12 +1658,14 @@
         const qualityMenu = document.querySelector('.bpx-player-ctrl-quality-menu');
         const qualityItems = qualityMenu ? qualityMenu.querySelectorAll('.bpx-player-ctrl-quality-menu-item') : null;
         const headerAvatar = document.querySelector(".v-popover-wrap.header-avatar-wrap");
-        const isReady = qualityItems && qualityItems.length > 0 && headerAvatar;
+        
+        // 未登录模式下不检查头像元素
+        const isReady = qualityItems && qualityItems.length > 0 && (state.devModeEnabled && state.devModeNoLoginStatus ? true : headerAvatar);
 
         console.log(`[播放器状态]
         - 画质菜单: ${qualityMenu ? '已加载' : '未加载'}
         - 画质选项: ${qualityItems ? `${qualityItems.length}个选项` : '未加载'}
-        - 用户头像: ${headerAvatar ? '已加载' : '未加载'}`);
+        - 用户头像: ${headerAvatar ? '已加载' : (state.devModeEnabled && state.devModeNoLoginStatus ? '未登录模式，跳过检查' : '未加载')}`);
 
         return isReady;
     }
@@ -1671,6 +1710,17 @@
         }
 
         if (state.devModeEnabled) {
+            // 未登录模式下直接返回非会员状态
+            if (state.devModeNoLoginStatus) {
+                state.isVipUser = false;
+                state.vipStatusChecked = true;
+                state.sessionCache.vipStatus = false;
+                state.sessionCache.vipChecked = true;
+                console.log("[开发者模式] 未登录模式，用户会员状态: 否");
+                return;
+            }
+            
+            // 模拟大会员状态
             state.isVipUser = state.devModeVipStatus;
             state.vipStatusChecked = true;
             state.sessionCache.vipStatus = state.isVipUser;
@@ -1874,8 +1924,15 @@
                             console.log(`[任务管理] 任务 #${taskId}: 播放器就绪，开始初始化画质设置`);
                             state.isLoading = false;
 
+                            if (state.devModeEnabled && state.devModeNoLoginStatus) {
+                                state.isVipUser = false;
+                                state.vipStatusChecked = true;
+                                state.sessionCache.vipStatus = false;
+                                state.sessionCache.vipChecked = true;
+                                console.log("[未登录模式] 非会员状态");
+                            }
                             // 第二次切换就用缓存
-                            if (!state.sessionCache.vipChecked) {
+                            else if (!state.sessionCache.vipChecked) {
                                 console.log("[会员状态] 首次检查会员状态");
                                 await checkVipStatusAsync();
                             } else {
