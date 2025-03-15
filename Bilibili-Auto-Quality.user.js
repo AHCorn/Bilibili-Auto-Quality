@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      4.5-Beta
+// @version      4.6
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -1397,12 +1397,26 @@
             <span class="unit" style="margin-left: 15px;">次</span>
           </div>
           <div id="dev-warning" class="warning" style="display: none;"></div>
-          <button class="refresh-button" ${!state.devModeEnabled ? 'disabled' : ''}>确认并刷新页面</button>
+          <button class="refresh-button">确认并刷新页面</button>
         `;
         document.body.appendChild(panel);
         panel.querySelector('#dev-mode').addEventListener('change', function (e) {
             state.devModeEnabled = e.target.checked;
             GM_setValue("devModeEnabled", state.devModeEnabled);
+            
+            const devOptions = panel.querySelectorAll('input[type="checkbox"]:not(#dev-mode), input[type="number"]');
+            devOptions.forEach(option => {
+                option.disabled = !state.devModeEnabled;
+            });
+            
+            const inputGroups = panel.querySelectorAll('.input-group');
+            inputGroups.forEach(group => {
+                if (state.devModeEnabled) {
+                    group.classList.remove('disabled');
+                } else {
+                    group.classList.add('disabled');
+                }
+            });
         });
         panel.querySelector('#quality-double-check').addEventListener('change', function (e) {
             state.qualityDoubleCheck = e.target.checked;
