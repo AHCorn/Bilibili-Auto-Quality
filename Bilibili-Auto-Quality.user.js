@@ -16,6 +16,7 @@
 // @match        *://bangumi.bilibili.com/*
 // @exclude      *://live.bilibili.com/
 // @exclude      *://live.bilibili.com/*/*
+// @include      *://live.bilibili.com/blanc/*
 // @match        *://live.bilibili.com/*
 // @grant        GM_addStyle
 // @grant        GM_setValue
