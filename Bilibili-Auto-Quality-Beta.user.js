@@ -1088,14 +1088,27 @@
             return;
         }
 
-        const qualityItems = document.querySelectorAll(".bpx-player-ctrl-quality-menu .bpx-player-ctrl-quality-menu-item");
-        let availableQualities = Array.from(qualityItems).map(item => ({
-            name: item.textContent.trim(),
-            element: item,
-            isVipOnly: !!item.querySelector(".bpx-player-ctrl-quality-badge-bigvip"),
-            isFreeNow: !!(item.querySelector(".bpx-player-ctrl-quality-badge-bigvip") &&
-                item.querySelector(".bpx-player-ctrl-quality-badge-bigvip").textContent.includes("限免中"))
-        }));
+        const qualityMenu = document.querySelector(".bpx-player-ctrl-quality-menu");
+        if (!qualityMenu) {
+            console.warn("[画质设置] 未找到画质菜单节点，终止本次切换");
+            return;
+        }
+
+        const qualityItems = Array.from(
+            qualityMenu.querySelectorAll(".bpx-player-ctrl-quality-menu-item")
+        );
+
+        let availableQualities = qualityItems.map(item => {
+            // 只在这儿查一次子元素，避免重复 querySelector
+            const badge = item.querySelector(".bpx-player-ctrl-quality-badge-bigvip");
+            const badgeText = badge ? badge.textContent : "";
+            return {
+                name: item.textContent.trim(),
+                element: item,
+                isVipOnly: !!badge,
+                isFreeNow: !!(badge && badgeText.includes("限免中"))
+            };
+        });
 
         if (state.disableHDROption) {
             availableQualities = availableQualities.filter(q => q.name.indexOf("HDR") === -1);
@@ -1517,15 +1530,11 @@
         else toggleSettingsPanel();
     });
     GM_registerMenuCommand("开发者选项", toggleDevSettingsPanel);
-    window.addEventListener("load", function () {
-        if (state.isLivePage) {
-            observeLineChanges();
-        }
-    });
-    window.onload = function () {
+    function initPlayerScripts() {
         checkIfLivePage();
         if (state.isLivePage) {
-            selectLiveQuality().then(() => { createLiveSettingsPanel(); });
+            observeLineChanges();
+            selectLiveQuality().then(createLiveSettingsPanel);
         } else {
             const DOM = {
                 selectors: {
@@ -1654,7 +1663,9 @@
             window.addEventListener('popstate', () => { DOM.clear(); });
             window.addEventListener('beforeunload', () => { DOM.clear(); });
         }
-    };
+    }
+    window.addEventListener("DOMContentLoaded", initPlayerScripts, { once: true });
+
     function isPlayerReady() {
         const qualityMenu = document.querySelector('.bpx-player-ctrl-quality-menu');
         const qualityItems = qualityMenu ? qualityMenu.querySelectorAll('.bpx-player-ctrl-quality-menu-item') : null;
