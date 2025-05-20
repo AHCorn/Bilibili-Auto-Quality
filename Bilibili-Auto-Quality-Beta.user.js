@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      4.7.2-Beta
+// @version      4.7.3-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -1128,15 +1128,6 @@
         console.log("[画质设置] 会员状态:", state.isVipUser ? "是" : "否");
 
         const qualityPreferences = ["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧", "1080P 高清", "720P 60帧", "720P", "480P", "360P", "默认"];
-        availableQualities.sort((a, b) => {
-            function getQualityIndex(name) {
-                for (let i = 0; i < qualityPreferences.length; i++) {
-                    if (name.includes(qualityPreferences[i])) return i;
-                }
-                return qualityPreferences.length;
-            }
-            return getQualityIndex(a.name) - getQualityIndex(b.name);
-        });
         let targetQuality;
         function cleanQuality(q) { return q ? q.replace(/大会员|限免中/g, '').trim() : ""; }
         if (state.userQualitySetting === "最高画质") {
@@ -1144,6 +1135,15 @@
             if (state.isVipUser || hasFreeVip) {
                 targetQuality = availableQualities[0];
             } else {
+                availableQualities.sort((a, b) => {
+                    function getQualityIndex(name) {
+                        for (let i = 0; i < qualityPreferences.length; i++) {
+                            if (name.includes(qualityPreferences[i])) return i;
+                        }
+                        return qualityPreferences.length;
+                    }
+                    return getQualityIndex(a.name) - getQualityIndex(b.name);
+                });
                 targetQuality = availableQualities.find(q => cleanQuality(q.name).includes(state.userBackupQualitySetting));
                 if (!targetQuality && state.useHighestQualityFallback)
                     targetQuality = availableQualities.find(q => !q.isVipOnly);
