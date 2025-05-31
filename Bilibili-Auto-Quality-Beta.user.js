@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      4.7.3-Beta
+// @version      4.7.5-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -44,7 +44,7 @@
         vipStatusChecked: false,
         isLoading: true,
         isLivePage: false,
-        userLiveQualitySetting: GM_getValue("liveQualitySetting", "原画"),
+        userLiveQualitySetting: GM_getValue("liveQualitySetting", "最高画质"),
         devModeEnabled: GM_getValue("devModeEnabled", false),
         devModeVipStatus: GM_getValue("devModeVipStatus", false),
         devModeNoLoginStatus: GM_getValue("devModeNoLoginStatus", false),
@@ -1191,7 +1191,7 @@
         panel.id = "bilibili-live-quality-selector";
         function updatePanel() {
             const qualityCandidates = unsafeWindow.livePlayer.getPlayerInfo().qualityCandidates;
-            const LIVE_QUALITIES = ["1080P 原画", "1080P 蓝光", "720P 超清", "720P 高清"];
+            const LIVE_QUALITIES = ["最高画质", "1080P 原画", "1080P 蓝光", "720P 超清"];
             const lineSelector = document.querySelector(".YccudlUCmLKcUTg_yzKN");
             const lines = lineSelector ? Array.from(lineSelector.children).map(li => li.textContent) : ["加载中..."];
             const currentLineIndex = lineSelector ? Array.from(lineSelector.children).findIndex(li => li.classList.contains("fG2r2piYghHTQKQZF8bl")) : 0;
@@ -1247,15 +1247,19 @@
         const qualityCandidates = unsafeWindow.livePlayer.getPlayerInfo().qualityCandidates;
         console.log("[直播画质] 可用画质选项:", qualityCandidates.map((q, i) => `${i + 1}. ${q.desc} (qn: ${q.qn})`));
         console.log("[直播画质] 选择的画质:", state.userLiveQualitySetting);
-        let targetQuality = qualityCandidates.find(q => q.desc === state.userLiveQualitySetting);
-        if (!targetQuality) {
-            const qualityPriority = ["1080P 原画", "1080P 蓝光", "720P 超清", "720P 高清"];
-            for (let quality of qualityPriority) {
-                targetQuality = qualityCandidates.find(q => q.desc === quality);
-                if (targetQuality) break;
-            }
+
+        let targetQuality;
+        if (state.userLiveQualitySetting === "最高画质") {
+            targetQuality = qualityCandidates[0];
+        } else {
+            targetQuality = qualityCandidates.find(q => q.desc.includes(state.userLiveQualitySetting));
         }
-        if (!targetQuality) targetQuality = qualityCandidates[0];
+
+        if (!targetQuality) {
+            console.log("[直播画质] 画质切换失败 (列表加载失败)，跳过切换。");
+            return; 
+        }
+
         console.log("[直播画质] 目标画质:", targetQuality.desc, "(qn:", targetQuality.qn, ")");
         function switchQuality() {
             const currentQualityNumber = unsafeWindow.livePlayer.getPlayerInfo().quality;
