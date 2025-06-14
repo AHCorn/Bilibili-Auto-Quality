@@ -49,6 +49,7 @@
         devModeVipStatus: GM_getValue("devModeVipStatus", false),
         devModeNoLoginStatus: GM_getValue("devModeNoLoginStatus", false),
         devModeDisableUA: GM_getValue("devModeDisableUA", false),
+        preserveTouchPoints: GM_getValue("preserveTouchPoints", false),
         devModeAudioRetries: GM_getValue("devModeAudioRetries", 2),
         devModeAudioDelay: GM_getValue("devModeAudioDelay", 4000),
         devDoubleCheckDelay: GM_getValue("devDoubleCheckDelay", 5000),
@@ -61,10 +62,28 @@
             vipChecked: false
         }
     };
+    function detectPointerType() {
+        try {
+            const hasFinePointer = window.matchMedia('(pointer: fine)').matches;
+            const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+            const anyHover = window.matchMedia('(any-hover: hover)').matches;
+            const supportsTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+            console.log(`[设备检测] Pointer Type: fine=${hasFinePointer}, coarse=${hasCoarsePointer}`);
+            console.log(`[设备检测] Hover Support: ${anyHover}`);
+            console.log(`[设备检测] Touch Support: ${supportsTouch}`);
+            return {
+                isMouseDevice: hasFinePointer && anyHover,
+                isTouchDevice: hasCoarsePointer && supportsTouch
+            };
+        } catch (error) {
+            console.error("[设备检测] 媒体查询失败，返回默认桌面模式");
+            return { isMouseDevice: true, isTouchDevice: false };
+        }
+    }
     try {
         if (!state.devModeDisableUA || !state.devModeEnabled) {
             Object.defineProperty(navigator, 'userAgent', {
-                value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15",
+                value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3.1 Safari/605.1.15",
                 configurable: true
             });
             Object.defineProperty(navigator, 'platform', {
@@ -75,8 +94,26 @@
         } else {
             console.log("[开发者模式] 已禁用 UA 修改");
         }
+        if (state.preserveTouchPoints) {
+            console.log("[系统设置] 用户配置保留触控点，跳过 maxTouchPoints 修改");
+        } else if (!state.devModeDisableUA || !state.devModeEnabled) {
+            const pointerType = detectPointerType();
+            console.log(`[设备检测] 检测结果: 
+              - 鼠标设备: ${pointerType.isMouseDevice}
+              - 触控设备: ${pointerType.isTouchDevice}`);
+            if (pointerType.isMouseDevice && !pointerType.isTouchDevice) {
+                Object.defineProperty(navigator, 'maxTouchPoints', {
+                    value: 0,
+                    configurable: true
+                });
+                console.log("[系统设置] 纯鼠标设备，已设置 maxTouchPoints 为 0");
+            } else {
+                console.log(`[系统设置] 保留 maxTouchPoints 原值: ${navigator.maxTouchPoints}，原因: ` +
+                            `${pointerType.isTouchDevice ? "检测到触控设备" : "无精确鼠标指针"}`);
+            }
+        }
     } catch (error) {
-        console.error("[系统设置] 修改 UserAgent 失败，解锁功能可能失效:", error);
+        console.error("[系统设置] 修改 UserAgent 或 maxTouchPoints 失败:", error);
     }
     GM_addStyle(`
     #bilibili-quality-selector, #bilibili-live-quality-selector, #bilibili-dev-settings {
@@ -585,7 +622,6 @@
         padding: 8px 6px;
     }
     .quality-settings-btn {
-        display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
@@ -1392,6 +1428,16 @@
             </label>
           </div>
           <div class="toggle-switch">
+            <label for="preserve-touch-points">
+              保留触控点
+              <div class="description">启用后保留 maxTouchPoints 原值，确保触屏功能正常</div>
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="preserve-touch-points" ${state.preserveTouchPoints ? 'checked' : ''} ${!state.devModeEnabled ? 'disabled' : ''}>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-switch">
             <label for="disable-hdr">
               禁用 HDR 选项
               <div class="description">为没有 HDR 设备的用户屏蔽该画质</div>
@@ -1476,6 +1522,10 @@
         panel.querySelector('#dev-ua').addEventListener('change', function (e) {
             state.devModeDisableUA = e.target.checked;
             GM_setValue("devModeDisableUA", state.devModeDisableUA);
+        });
+        panel.querySelector('#preserve-touch-points').addEventListener('change', function(e) {
+            state.preserveTouchPoints = e.target.checked;
+            GM_setValue("preserveTouchPoints", state.preserveTouchPoints);
         });
         panel.querySelector('#disable-hdr').addEventListener('change', function (e) {
             state.disableHDROption = e.target.checked;
