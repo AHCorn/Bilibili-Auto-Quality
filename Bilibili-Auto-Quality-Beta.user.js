@@ -62,11 +62,26 @@
             vipChecked: false
         }
     };
+    function detectPointerType() {
+        try {
+            const hasFinePointer = window.matchMedia('(pointer: fine)').matches;
+            const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+            const anyHover = window.matchMedia('(any-hover: hover)').matches;
+            const supportsTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+            console.log(`[设备检测] Pointer Type: fine=${hasFinePointer}, coarse=${hasCoarsePointer}`);
+            console.log(`[设备检测] Hover Support: ${anyHover}`);
+            console.log(`[设备检测] Touch Support: ${supportsTouch}`);
+            return {
+                isMouseDevice: hasFinePointer && anyHover,
+                isTouchDevice: hasCoarsePointer && supportsTouch
+            };
+        } catch (error) {
+            console.error("[设备检测] 媒体查询失败，返回默认桌面模式");
+            return { isMouseDevice: true, isTouchDevice: false };
+        }
+    }
     try {
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
         if (!state.devModeDisableUA || !state.devModeEnabled) {
-            // 修改 UA 和平台标识
             Object.defineProperty(navigator, 'userAgent', {
                 value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3.1 Safari/605.1.15",
                 configurable: true
@@ -76,20 +91,26 @@
                 configurable: true
             });
             console.log("[系统设置] UA 和平台标识修改成功");
-
-            // ===== 智能处理 maxTouchPoints =====
-            if (!isMobile && !state.preserveTouchPoints) {
+        } else {
+            console.log("[开发者模式] 已禁用 UA 修改");
+        }
+        if (state.preserveTouchPoints) {
+            console.log("[系统设置] 用户配置保留触控点，跳过 maxTouchPoints 修改");
+        } else if (!state.devModeDisableUA || !state.devModeEnabled) {
+            const pointerType = detectPointerType();
+            console.log(`[设备检测] 检测结果: 
+              - 鼠标设备: ${pointerType.isMouseDevice}
+              - 触控设备: ${pointerType.isTouchDevice}`);
+            if (pointerType.isMouseDevice && !pointerType.isTouchDevice) {
                 Object.defineProperty(navigator, 'maxTouchPoints', {
                     value: 0,
                     configurable: true
                 });
-                console.log("[系统设置] 桌面环境下已设置 maxTouchPoints 为 0");
+                console.log("[系统设置] 纯鼠标设备，已设置 maxTouchPoints 为 0");
             } else {
-                console.log(`[系统设置] 保留 maxTouchPoints 原值: ${navigator.maxTouchPoints}`, 
-                    isMobile ? "(移动设备)" : "(用户选择保留触控点)");
+                console.log(`[系统设置] 保留 maxTouchPoints 原值: ${navigator.maxTouchPoints}，原因: ` +
+                            `${pointerType.isTouchDevice ? "检测到触控设备" : "无精确鼠标指针"}`);
             }
-        } else {
-            console.log("[开发者模式] 已禁用 UA 修改");
         }
     } catch (error) {
         console.error("[系统设置] 修改 UserAgent 或 maxTouchPoints 失败:", error);
