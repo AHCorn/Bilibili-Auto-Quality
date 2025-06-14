@@ -49,6 +49,7 @@
         devModeVipStatus: GM_getValue("devModeVipStatus", false),
         devModeNoLoginStatus: GM_getValue("devModeNoLoginStatus", false),
         devModeDisableUA: GM_getValue("devModeDisableUA", false),
+        preserveTouchPoints: GM_getValue("preserveTouchPoints", false),
         devModeAudioRetries: GM_getValue("devModeAudioRetries", 2),
         devModeAudioDelay: GM_getValue("devModeAudioDelay", 4000),
         devDoubleCheckDelay: GM_getValue("devDoubleCheckDelay", 5000),
@@ -62,9 +63,12 @@
         }
     };
     try {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
         if (!state.devModeDisableUA || !state.devModeEnabled) {
+            // 修改 UA 和平台标识
             Object.defineProperty(navigator, 'userAgent', {
-                value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15",
+                value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3.1 Safari/605.1.15",
                 configurable: true
             });
             Object.defineProperty(navigator, 'platform', {
@@ -72,11 +76,23 @@
                 configurable: true
             });
             console.log("[系统设置] UA 和平台标识修改成功");
+
+            // ===== 智能处理 maxTouchPoints =====
+            if (!isMobile && !state.preserveTouchPoints) {
+                Object.defineProperty(navigator, 'maxTouchPoints', {
+                    value: 0,
+                    configurable: true
+                });
+                console.log("[系统设置] 桌面环境下已设置 maxTouchPoints 为 0");
+            } else {
+                console.log(`[系统设置] 保留 maxTouchPoints 原值: ${navigator.maxTouchPoints}`, 
+                    isMobile ? "(移动设备)" : "(用户选择保留触控点)");
+            }
         } else {
             console.log("[开发者模式] 已禁用 UA 修改");
         }
     } catch (error) {
-        console.error("[系统设置] 修改 UserAgent 失败，解锁功能可能失效:", error);
+        console.error("[系统设置] 修改 UserAgent 或 maxTouchPoints 失败:", error);
     }
     GM_addStyle(`
     #bilibili-quality-selector, #bilibili-live-quality-selector, #bilibili-dev-settings {
@@ -585,7 +601,6 @@
         padding: 8px 6px;
     }
     .quality-settings-btn {
-        display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
@@ -1392,6 +1407,16 @@
             </label>
           </div>
           <div class="toggle-switch">
+            <label for="preserve-touch-points">
+              保留触控点
+              <div class="description">启用后保留 maxTouchPoints 原值，确保触屏功能正常</div>
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="preserve-touch-points" ${state.preserveTouchPoints ? 'checked' : ''} ${!state.devModeEnabled ? 'disabled' : ''}>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-switch">
             <label for="disable-hdr">
               禁用 HDR 选项
               <div class="description">为没有 HDR 设备的用户屏蔽该画质</div>
@@ -1476,6 +1501,10 @@
         panel.querySelector('#dev-ua').addEventListener('change', function (e) {
             state.devModeDisableUA = e.target.checked;
             GM_setValue("devModeDisableUA", state.devModeDisableUA);
+        });
+        panel.querySelector('#preserve-touch-points').addEventListener('change', function(e) {
+            state.preserveTouchPoints = e.target.checked;
+            GM_setValue("preserveTouchPoints", state.preserveTouchPoints);
         });
         panel.querySelector('#disable-hdr').addEventListener('change', function (e) {
             state.disableHDROption = e.target.checked;
