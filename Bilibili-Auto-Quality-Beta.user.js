@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      4.7.5-Beta
+// @version      4.7.6-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -637,7 +637,6 @@
     .quality-settings-btn .bpx-player-ctrl-btn-icon {
         width: 22px;
         height: 22px;
-        margin-bottom: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
