@@ -1795,29 +1795,19 @@
             return;
         }
 
-        try {
-            const [vipElement, currentQualityEl] = await Promise.all([
-                waitForElement(() => document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip"), 3000),
-                waitForElement(() => document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text"), 3000)
-            ]);
+        // Directly query elements as the higher-level observer has already waited for them
+        const vipElement = document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip");
+        const currentQualityEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
 
-            state.isVipUser = vipElement !== null || (currentQualityEl && currentQualityEl.textContent.includes("大会员"));
-            state.vipStatusChecked = true;
-            // 缓存结果
-            state.sessionCache.vipStatus = state.isVipUser;
-            state.sessionCache.vipChecked = true;
+        state.isVipUser = vipElement !== null || (currentQualityEl && currentQualityEl.textContent.includes("大会员"));
+        state.vipStatusChecked = true;
+        // 缓存结果
+        state.sessionCache.vipStatus = state.isVipUser;
+        state.sessionCache.vipChecked = true;
 
-            console.log("[会员状态] 用户会员状态:", state.isVipUser ? "是" : "否");
-            if (state.isVipUser) {
-                console.log("[会员状态] 判定依据:", vipElement ? "发现会员图标" : "当前使用会员画质");
-            }
-        } catch (error) {
-            console.log("[会员状态] 检查超时，默认为非会员用户");
-            state.isVipUser = false;
-            state.vipStatusChecked = true;
-            // 缓存结果
-            state.sessionCache.vipStatus = state.isVipUser;
-            state.sessionCache.vipChecked = true;
+        console.log("[会员状态] 用户会员状态:", state.isVipUser ? "是" : "否");
+        if (state.isVipUser) {
+            console.log("[会员状态] 判定依据:", vipElement ? "发现会员图标" : "当前使用会员画质");
         }
     }
 
