@@ -964,24 +964,7 @@
             if (!state.isLoading) {
                 state.injectQualityButton = e.target.checked;
                 GM_setValue("injectQualityButton", state.injectQualityButton);
-                const qualityControlElement = document.querySelector(".bpx-player-ctrl-quality");
-                if (qualityControlElement) {
-                    if (state.injectQualityButton) {
-                        let settingsButton = qualityControlElement.previousElementSibling;
-                        if (!settingsButton || !settingsButton.classList.contains("quality-settings-btn")) {
-                            settingsButton = document.createElement("div");
-                            settingsButton.className = "bpx-player-ctrl-btn quality-settings-btn";
-                            settingsButton.innerHTML = '<div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="15" rx="2" ry="2"></rect><polyline points="8 20 12 20 16 20"></polyline></svg></span></div>';
-                            settingsButton.addEventListener("click", toggleSettingsPanel);
-                            qualityControlElement.parentElement.insertBefore(settingsButton, qualityControlElement);
-                        }
-                    } else {
-                        const existingButton = qualityControlElement.previousElementSibling;
-                        if (existingButton && existingButton.classList.contains("quality-settings-btn")) {
-                            existingButton.remove();
-                        }
-                    }
-                }
+                ensureQualitySettingsButton(state.injectQualityButton);
             }
         });
         document.body.appendChild(panel);
@@ -1578,6 +1561,27 @@
             if (removeQualityButton) removeQualityButton.checked = state.takeOverQualityControl;
         });
     }
+
+    // 注入设置按钮相关操作
+    function ensureQualitySettingsButton(shouldInject) {
+        const qualityControl = document.querySelector('.bpx-player-ctrl-quality');
+        if (!qualityControl) return;
+        const parent = qualityControl.parentElement;
+        if (!parent) return;
+
+        const existing = parent.querySelector('.quality-settings-btn');
+        if (shouldInject) {
+            if (!existing) {
+                const settingsButton = document.createElement('div');
+                settingsButton.className = 'bpx-player-ctrl-btn quality-settings-btn';
+                settingsButton.innerHTML = '<div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="15" rx="2" ry="2"></rect><polyline points="8 20 12 20 16 20"></polyline></svg></span></div>';
+                settingsButton.addEventListener('click', toggleSettingsPanel);
+                parent.insertBefore(settingsButton, qualityControl);
+            }
+        } else if (existing) {
+            existing.remove();
+        }
+    }
     GM_registerMenuCommand("设置面板", function () {
         checkIfLivePage();
         if (state.isLivePage) toggleLiveSettingsPanel();
@@ -1619,20 +1623,7 @@
                 if (qualityControl && state.takeOverQualityControl) qualityControl.classList.add('quality-button-hidden');
             }
 
-            function initQualitySettingsButton() {
-                const controlBottomRight = DOM.get('controlBottomRight');
-                const qualityControl = DOM.get('qualityControl');
-                if (controlBottomRight && qualityControl && state.injectQualityButton) {
-                    let existingSettingsBtn = controlBottomRight.querySelector('.quality-settings-btn');
-                    if (!existingSettingsBtn) {
-                        const settingsButton = document.createElement('div');
-                        settingsButton.className = 'bpx-player-ctrl-btn quality-settings-btn';
-                        settingsButton.innerHTML = '<div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="15" rx="2" ry="2"></rect><polyline points="8 20 12 20 16 20"></polyline></svg></span></div>';
-                        settingsButton.addEventListener("click", toggleSettingsPanel);
-                        qualityControl.parentElement.insertBefore(settingsButton, qualityControl);
-                    }
-                }
-            }
+            function initQualitySettingsButton() { ensureQualitySettingsButton(state.injectQualityButton); }
 
             hideQualityButton();
             initQualitySettingsButton();
