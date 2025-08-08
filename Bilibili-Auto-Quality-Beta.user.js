@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      4.7.7-Beta
+// @version      4.7.8-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -1884,47 +1884,6 @@
     }
 
     const cleanup = createCleanupFunction();
-
-    function initQualitySettingsButton() {
-        const controlBottomRight = DOM.get('controlBottomRight');
-        const qualityControl = DOM.get('qualityControl');
-
-        if (controlBottomRight && qualityControl && state.injectQualityButton) {
-            const existingSettingsBtn = controlBottomRight.querySelector('.quality-settings-btn');
-            if (!existingSettingsBtn) {
-                const settingsButton = document.createElement('div');
-                settingsButton.className = 'bpx-player-ctrl-btn quality-settings-btn';
-                settingsButton.innerHTML = '<div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="15" rx="2" ry="2"></rect><polyline points="8 20 12 20 16 20"></polyline></svg></span></div>';
-
-                const handleClick = () => toggleSettingsPanel();
-                settingsButton.addEventListener('click', handleClick);
-                cleanup.addEventListener(settingsButton, 'click', handleClick);
-
-                qualityControl.parentElement.insertBefore(settingsButton, qualityControl);
-            }
-        }
-    }
-
-    function observePlayerControls() {
-        const playerControls = DOM.get('playerControls');
-        if (playerControls) {
-            const observer = new MutationObserver(() => {
-                const qualityControl = DOM.refresh('qualityControl');
-                if (qualityControl) {
-                    hideQualityButton();
-                    initQualitySettingsButton();
-                }
-            });
-
-            observer.observe(playerControls, {
-                childList: true,
-                subtree: true,
-                attributes: false
-            });
-
-            cleanup.addObserver(observer);
-        }
-    }
 
     // 清理资源
     window.addEventListener('beforeunload', () => {
