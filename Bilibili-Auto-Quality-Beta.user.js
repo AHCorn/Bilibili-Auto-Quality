@@ -1218,8 +1218,8 @@
             } else {
                 console.log("[画质设置] 画质切换验证成功，当前画质: " + currentQualityAfterSwitch);
             }
-            await setAudioQuality();
         }
+        await setAudioQuality();
     }
     function createLiveSettingsPanel() {
         const panel = document.createElement("div");
