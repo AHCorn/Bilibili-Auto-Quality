@@ -38,7 +38,6 @@
         userBackupQualitySetting: GM_getValue("backupQualitySetting", "最高画质"),
         useHighestQualityFallback: GM_getValue("useHighestQualityFallback", true),
         activeQualityTab: GM_getValue("activeQualityTab", "primary"),
-        userHasChangedQuality: false,
         takeOverQualityControl: GM_getValue("takeOverQualityControl", false),
         isVipUser: false,
         vipStatusChecked: false,
@@ -173,23 +172,12 @@
     .toggle-switch.show {
         display: flex;
     }
-    #bilibili-quality-selector h2, #bilibili-live-quality-selector h2,
-    #bilibili-live-quality-selector h3 {
+    #bilibili-quality-selector h2, #bilibili-live-quality-selector h2 {
         margin: 0 0 20px;
         color: #00a1d6;
         font-size: 28px;
         text-align: center;
         font-weight: 700;
-    }
-    #bilibili-live-quality-selector h3 {
-        font-size: 24px;
-        margin-top: 20px;
-    }
-    #bilibili-quality-selector p, #bilibili-live-quality-selector p {
-        margin: 0 0 25px;
-        color: #5f6368;
-        font-size: 14px;
-        text-align: center;
     }
     .quality-group {
         display: grid;
@@ -235,10 +223,6 @@
         color: white;
         border-color: #f25d8e;
         box-shadow: 0 6px 12px rgba(242, 93, 142, 0.3);
-    }
-    .quality-button.unavailable {
-        opacity: 0.5;
-        cursor: not-allowed;
     }
     .toggle-switch {
         display: flex;
@@ -611,16 +595,6 @@
     .quality-section {
         margin-bottom: 20px;
     }
-    .quality-label {
-        font-size: 14px;
-        color: #666;
-        margin-bottom: 10px;
-        text-align: left;
-    }
-    .quality-group.backup-quality .quality-button {
-        font-size: 12px;
-        padding: 8px 6px;
-    }
     .quality-settings-btn {
         align-items: center;
         justify-content: center;
@@ -753,31 +727,6 @@
     };
     function checkIfLivePage() {
         state.isLivePage = window.location.href.includes("live.bilibili.com");
-    }
-    function checkVipStatus() {
-        if (state.devModeEnabled) {
-            state.isVipUser = state.devModeVipStatus;
-            state.vipStatusChecked = true;
-            // 缓存会员状态
-            state.sessionCache.vipStatus = state.isVipUser;
-            state.sessionCache.vipChecked = true;
-            console.log("[开发者模式] 用户会员状态:", state.isVipUser ? "是" : "否");
-            return;
-        }
-
-        const vipElement = document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip");
-        const currentQualityEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
-
-        state.isVipUser = vipElement !== null || (currentQualityEl && currentQualityEl.textContent.includes("大会员"));
-        state.vipStatusChecked = true;
-        // 缓存会员状态
-        state.sessionCache.vipStatus = state.isVipUser;
-        state.sessionCache.vipChecked = true;
-
-        console.log("[会员状态] 用户会员状态:", state.isVipUser ? "是" : "否");
-        if (state.isVipUser) {
-            console.log("[会员状态] 判定依据:", vipElement ? "发现会员图标" : "当前使用会员画质");
-        }
     }
     function updateWarnings(panel) {
         if (!panel || state.isLoading || !state.vipStatusChecked) return;
@@ -1603,8 +1552,7 @@
                     vipIcon: '.bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip',
                     qualityMenu: '.bpx-player-ctrl-quality-menu',
                     qualityMenuItem: '.bpx-player-ctrl-quality-menu-item',
-                    activeQuality: '.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text',
-                    controlBottomRight: '.bpx-player-control-bottom-right'
+                    activeQuality: '.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text'
                 },
                 elements: {},
                 get(key) {
@@ -1801,87 +1749,6 @@
             console.log("[会员状态] 判定依据:", vipElement ? "发现会员图标" : "当前使用会员画质");
         }
     }
-
-    function waitForElement(selector, timeout = 5000) {
-        return new Promise((resolve, reject) => {
-            const element = selector();
-            if (element) {
-                resolve(element);
-                return;
-            }
-
-            const observer = new MutationObserver((mutations, obs) => {
-                const element = selector();
-                if (element) {
-                    obs.disconnect();
-                    resolve(element);
-                }
-            });
-
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['class']
-            });
-
-            if (timeout) {
-                setTimeout(() => {
-                    observer.disconnect();
-                    resolve(null);
-                }, timeout);
-            }
-        });
-    }
-
-    function createCleanupFunction() {
-        const observers = new Set();
-        const eventListeners = new Set();
-        const timeouts = new Set();
-        const intervals = new Set();
-
-        return {
-            addObserver: (observer) => observers.add(observer),
-            addEventListener: (element, type, listener) => {
-                element.addEventListener(type, listener);
-                eventListeners.add({ element, type, listener });
-            },
-            setTimeout: (callback, delay) => {
-                const id = setTimeout(callback, delay);
-                timeouts.add(id);
-                return id;
-            },
-            setInterval: (callback, delay) => {
-                const id = setInterval(callback, delay);
-                intervals.add(id);
-                return id;
-            },
-            cleanup: () => {
-                observers.forEach(observer => observer.disconnect());
-                observers.clear();
-
-                eventListeners.forEach(({ element, type, listener }) => {
-                    element.removeEventListener(type, listener);
-                });
-                eventListeners.clear();
-
-                timeouts.forEach(clearTimeout);
-                timeouts.clear();
-
-                intervals.forEach(clearInterval);
-                intervals.clear();
-            }
-        };
-    }
-
-    const cleanup = createCleanupFunction();
-
-    // 清理资源
-    window.addEventListener('beforeunload', () => {
-        cleanup.cleanup();
-    });
-
-    let currentUrlChangeTaskId = 0;
     function canonicalUrl(rawUrl) {
         try {
             const urlObj = new URL(rawUrl);
