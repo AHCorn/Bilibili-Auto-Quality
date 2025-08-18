@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      4.7-Beta
+// @version      4.7.8
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -14,14 +14,15 @@
 // @match        *://www.bilibili.com/watchroom/*
 // @match        *://www.bilibili.com/medialist/*
 // @match        *://bangumi.bilibili.com/*
-// @exclude      *://live.bilibili.com/
-// @exclude      *://live.bilibili.com/*/*
-// @include      *://live.bilibili.com/blanc/*
 // @match        *://live.bilibili.com/*
+// @exclude      *://live.bilibili.com/
+// @exclude      *://live.bilibili.com/p/*
+// @noframes
 // @grant        GM_addStyle
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
+// @run-at       document-start
 // @updateURL    https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js
 // @downloadURL  https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js
 // ==/UserScript==
@@ -37,17 +38,17 @@
         userBackupQualitySetting: GM_getValue("backupQualitySetting", "最高画质"),
         useHighestQualityFallback: GM_getValue("useHighestQualityFallback", true),
         activeQualityTab: GM_getValue("activeQualityTab", "primary"),
-        userHasChangedQuality: false,
         takeOverQualityControl: GM_getValue("takeOverQualityControl", false),
         isVipUser: false,
         vipStatusChecked: false,
         isLoading: true,
         isLivePage: false,
-        userLiveQualitySetting: GM_getValue("liveQualitySetting", "原画"),
+        userLiveQualitySetting: GM_getValue("liveQualitySetting", "最高画质"),
         devModeEnabled: GM_getValue("devModeEnabled", false),
         devModeVipStatus: GM_getValue("devModeVipStatus", false),
         devModeNoLoginStatus: GM_getValue("devModeNoLoginStatus", false),
         devModeDisableUA: GM_getValue("devModeDisableUA", false),
+        preserveTouchPoints: GM_getValue("preserveTouchPoints", false),
         devModeAudioRetries: GM_getValue("devModeAudioRetries", 2),
         devModeAudioDelay: GM_getValue("devModeAudioDelay", 4000),
         devDoubleCheckDelay: GM_getValue("devDoubleCheckDelay", 5000),
@@ -60,10 +61,28 @@
             vipChecked: false
         }
     };
+    function detectPointerType() {
+        try {
+            const hasFinePointer = window.matchMedia('(pointer: fine)').matches;
+            const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+            const anyHover = window.matchMedia('(any-hover: hover)').matches;
+            const supportsTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+            console.log(`[设备检测] Pointer Type: fine=${hasFinePointer}, coarse=${hasCoarsePointer}`);
+            console.log(`[设备检测] Hover Support: ${anyHover}`);
+            console.log(`[设备检测] Touch Support: ${supportsTouch}`);
+            return {
+                isMouseDevice: hasFinePointer && anyHover,
+                isTouchDevice: hasCoarsePointer && supportsTouch
+            };
+        } catch (error) {
+            console.error("[设备检测] 媒体查询失败，返回默认桌面模式");
+            return { isMouseDevice: true, isTouchDevice: false };
+        }
+    }
     try {
         if (!state.devModeDisableUA || !state.devModeEnabled) {
             Object.defineProperty(navigator, 'userAgent', {
-                value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15",
+                value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3.1 Safari/605.1.15",
                 configurable: true
             });
             Object.defineProperty(navigator, 'platform', {
@@ -74,8 +93,26 @@
         } else {
             console.log("[开发者模式] 已禁用 UA 修改");
         }
+        if (state.preserveTouchPoints) {
+            console.log("[系统设置] 用户配置保留触控点，跳过 maxTouchPoints 修改");
+        } else if (!state.devModeDisableUA || !state.devModeEnabled) {
+            const pointerType = detectPointerType();
+            console.log(`[设备检测] 检测结果: 
+              - 鼠标设备: ${pointerType.isMouseDevice}
+              - 触控设备: ${pointerType.isTouchDevice}`);
+            if (pointerType.isMouseDevice && !pointerType.isTouchDevice) {
+                Object.defineProperty(navigator, 'maxTouchPoints', {
+                    value: 0,
+                    configurable: true
+                });
+                console.log("[系统设置] 纯鼠标设备，已设置 maxTouchPoints 为 0");
+            } else {
+                console.log(`[系统设置] 保留 maxTouchPoints 原值: ${navigator.maxTouchPoints}，原因: ` +
+                            `${pointerType.isTouchDevice ? "检测到触控设备" : "无精确鼠标指针"}`);
+            }
+        }
     } catch (error) {
-        console.error("[系统设置] 修改 UserAgent 失败，解锁功能可能失效:", error);
+        console.error("[系统设置] 修改 UserAgent 或 maxTouchPoints 失败:", error);
     }
     GM_addStyle(`
     #bilibili-quality-selector, #bilibili-live-quality-selector, #bilibili-dev-settings {
@@ -135,23 +172,12 @@
     .toggle-switch.show {
         display: flex;
     }
-    #bilibili-quality-selector h2, #bilibili-live-quality-selector h2,
-    #bilibili-live-quality-selector h3 {
+    #bilibili-quality-selector h2, #bilibili-live-quality-selector h2 {
         margin: 0 0 20px;
         color: #00a1d6;
         font-size: 28px;
         text-align: center;
         font-weight: 700;
-    }
-    #bilibili-live-quality-selector h3 {
-        font-size: 24px;
-        margin-top: 20px;
-    }
-    #bilibili-quality-selector p, #bilibili-live-quality-selector p {
-        margin: 0 0 25px;
-        color: #5f6368;
-        font-size: 14px;
-        text-align: center;
     }
     .quality-group {
         display: grid;
@@ -197,10 +223,6 @@
         color: white;
         border-color: #f25d8e;
         box-shadow: 0 6px 12px rgba(242, 93, 142, 0.3);
-    }
-    .quality-button.unavailable {
-        opacity: 0.5;
-        cursor: not-allowed;
     }
     .toggle-switch {
         display: flex;
@@ -573,18 +595,7 @@
     .quality-section {
         margin-bottom: 20px;
     }
-    .quality-label {
-        font-size: 14px;
-        color: #666;
-        margin-bottom: 10px;
-        text-align: left;
-    }
-    .quality-group.backup-quality .quality-button {
-        font-size: 12px;
-        padding: 8px 6px;
-    }
     .quality-settings-btn {
-        display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
@@ -600,7 +611,6 @@
     .quality-settings-btn .bpx-player-ctrl-btn-icon {
         width: 22px;
         height: 22px;
-        margin-bottom: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -717,31 +727,6 @@
     };
     function checkIfLivePage() {
         state.isLivePage = window.location.href.includes("live.bilibili.com");
-    }
-    function checkVipStatus() {
-        if (state.devModeEnabled) {
-            state.isVipUser = state.devModeVipStatus;
-            state.vipStatusChecked = true;
-            // 缓存会员状态
-            state.sessionCache.vipStatus = state.isVipUser;
-            state.sessionCache.vipChecked = true;
-            console.log("[开发者模式] 用户会员状态:", state.isVipUser ? "是" : "否");
-            return;
-        }
-
-        const vipElement = document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip");
-        const currentQualityEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
-
-        state.isVipUser = vipElement !== null || (currentQualityEl && currentQualityEl.textContent.includes("大会员"));
-        state.vipStatusChecked = true;
-        // 缓存会员状态
-        state.sessionCache.vipStatus = state.isVipUser;
-        state.sessionCache.vipChecked = true;
-
-        console.log("[会员状态] 用户会员状态:", state.isVipUser ? "是" : "否");
-        if (state.isVipUser) {
-            console.log("[会员状态] 判定依据:", vipElement ? "发现会员图标" : "当前使用会员画质");
-        }
     }
     function updateWarnings(panel) {
         if (!panel || state.isLoading || !state.vipStatusChecked) return;
@@ -928,24 +913,7 @@
             if (!state.isLoading) {
                 state.injectQualityButton = e.target.checked;
                 GM_setValue("injectQualityButton", state.injectQualityButton);
-                const qualityControlElement = document.querySelector(".bpx-player-ctrl-quality");
-                if (qualityControlElement) {
-                    if (state.injectQualityButton) {
-                        let settingsButton = qualityControlElement.previousElementSibling;
-                        if (!settingsButton || !settingsButton.classList.contains("quality-settings-btn")) {
-                            settingsButton = document.createElement("div");
-                            settingsButton.className = "bpx-player-ctrl-btn quality-settings-btn";
-                            settingsButton.innerHTML = '<div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="15" rx="2" ry="2"></rect><polyline points="8 20 12 20 16 20"></polyline></svg></span></div>';
-                            settingsButton.addEventListener("click", toggleSettingsPanel);
-                            qualityControlElement.parentElement.insertBefore(settingsButton, qualityControlElement);
-                        }
-                    } else {
-                        const existingButton = qualityControlElement.previousElementSibling;
-                        if (existingButton && existingButton.classList.contains("quality-settings-btn")) {
-                            existingButton.remove();
-                        }
-                    }
-                }
+                ensureQualitySettingsButton(state.injectQualityButton);
             }
         });
         document.body.appendChild(panel);
@@ -1088,14 +1056,27 @@
             return;
         }
 
-        const qualityItems = document.querySelectorAll(".bpx-player-ctrl-quality-menu .bpx-player-ctrl-quality-menu-item");
-        let availableQualities = Array.from(qualityItems).map(item => ({
-            name: item.textContent.trim(),
-            element: item,
-            isVipOnly: !!item.querySelector(".bpx-player-ctrl-quality-badge-bigvip"),
-            isFreeNow: !!(item.querySelector(".bpx-player-ctrl-quality-badge-bigvip") &&
-                item.querySelector(".bpx-player-ctrl-quality-badge-bigvip").textContent.includes("限免中"))
-        }));
+        const qualityMenu = document.querySelector(".bpx-player-ctrl-quality-menu");
+        if (!qualityMenu) {
+            console.warn("[画质设置] 未找到画质菜单节点，终止本次切换");
+            return;
+        }
+
+        const qualityItems = Array.from(
+            qualityMenu.querySelectorAll(".bpx-player-ctrl-quality-menu-item")
+        );
+
+        let availableQualities = qualityItems.map(item => {
+            // 只在这儿查一次子元素，避免重复 querySelector
+            const badge = item.querySelector(".bpx-player-ctrl-quality-badge-bigvip");
+            const badgeText = badge ? badge.textContent : "";
+            return {
+                name: item.textContent.trim(),
+                element: item,
+                isVipOnly: !!badge,
+                isFreeNow: !!(badge && badgeText.includes("限免中"))
+            };
+        });
 
         if (state.disableHDROption) {
             availableQualities = availableQualities.filter(q => q.name.indexOf("HDR") === -1);
@@ -1114,15 +1095,6 @@
         console.log("[画质设置] 会员状态:", state.isVipUser ? "是" : "否");
 
         const qualityPreferences = ["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧", "1080P 高清", "720P 60帧", "720P", "480P", "360P", "默认"];
-        availableQualities.sort((a, b) => {
-            function getQualityIndex(name) {
-                for (let i = 0; i < qualityPreferences.length; i++) {
-                    if (name.includes(qualityPreferences[i])) return i;
-                }
-                return qualityPreferences.length;
-            }
-            return getQualityIndex(a.name) - getQualityIndex(b.name);
-        });
         let targetQuality;
         function cleanQuality(q) { return q ? q.replace(/大会员|限免中/g, '').trim() : ""; }
         if (state.userQualitySetting === "最高画质") {
@@ -1130,6 +1102,15 @@
             if (state.isVipUser || hasFreeVip) {
                 targetQuality = availableQualities[0];
             } else {
+                availableQualities.sort((a, b) => {
+                    function getQualityIndex(name) {
+                        for (let i = 0; i < qualityPreferences.length; i++) {
+                            if (name.includes(qualityPreferences[i])) return i;
+                        }
+                        return qualityPreferences.length;
+                    }
+                    return getQualityIndex(a.name) - getQualityIndex(b.name);
+                });
                 targetQuality = availableQualities.find(q => cleanQuality(q.name).includes(state.userBackupQualitySetting));
                 if (!targetQuality && state.useHighestQualityFallback)
                     targetQuality = availableQualities.find(q => !q.isVipOnly);
@@ -1169,15 +1150,15 @@
             } else {
                 console.log("[画质设置] 画质切换验证成功，当前画质: " + currentQualityAfterSwitch);
             }
-            await setAudioQuality();
         }
+        await setAudioQuality();
     }
     function createLiveSettingsPanel() {
         const panel = document.createElement("div");
         panel.id = "bilibili-live-quality-selector";
         function updatePanel() {
             const qualityCandidates = unsafeWindow.livePlayer.getPlayerInfo().qualityCandidates;
-            const LIVE_QUALITIES = ["原画", "蓝光", "超清", "高清"];
+            const LIVE_QUALITIES = ["最高画质", "1080P 原画", "1080P 蓝光", "720P 超清"];
             const lineSelector = document.querySelector(".YccudlUCmLKcUTg_yzKN");
             const lines = lineSelector ? Array.from(lineSelector.children).map(li => li.textContent) : ["加载中..."];
             const currentLineIndex = lineSelector ? Array.from(lineSelector.children).findIndex(li => li.classList.contains("fG2r2piYghHTQKQZF8bl")) : 0;
@@ -1233,15 +1214,19 @@
         const qualityCandidates = unsafeWindow.livePlayer.getPlayerInfo().qualityCandidates;
         console.log("[直播画质] 可用画质选项:", qualityCandidates.map((q, i) => `${i + 1}. ${q.desc} (qn: ${q.qn})`));
         console.log("[直播画质] 选择的画质:", state.userLiveQualitySetting);
-        let targetQuality = qualityCandidates.find(q => q.desc === state.userLiveQualitySetting);
-        if (!targetQuality) {
-            const qualityPriority = ["原画", "蓝光", "超清", "高清"];
-            for (let quality of qualityPriority) {
-                targetQuality = qualityCandidates.find(q => q.desc === quality);
-                if (targetQuality) break;
-            }
+
+        let targetQuality;
+        if (state.userLiveQualitySetting === "最高画质") {
+            targetQuality = qualityCandidates[0];
+        } else {
+            targetQuality = qualityCandidates.find(q => q.desc.includes(state.userLiveQualitySetting));
         }
-        if (!targetQuality) targetQuality = qualityCandidates[0];
+
+        if (!targetQuality) {
+            console.log("[直播画质] 画质切换失败 (列表加载失败)，跳过切换。");
+            return; 
+        }
+
         console.log("[直播画质] 目标画质:", targetQuality.desc, "(qn:", targetQuality.qn, ")");
         function switchQuality() {
             const currentQualityNumber = unsafeWindow.livePlayer.getPlayerInfo().quality;
@@ -1374,6 +1359,16 @@
             </label>
           </div>
           <div class="toggle-switch">
+            <label for="preserve-touch-points">
+              保留触控点
+              <div class="description">启用后保留 maxTouchPoints 原值，确保触屏功能正常</div>
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="preserve-touch-points" ${state.preserveTouchPoints ? 'checked' : ''} ${!state.devModeEnabled ? 'disabled' : ''}>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-switch">
             <label for="disable-hdr">
               禁用 HDR 选项
               <div class="description">为没有 HDR 设备的用户屏蔽该画质</div>
@@ -1459,6 +1454,10 @@
             state.devModeDisableUA = e.target.checked;
             GM_setValue("devModeDisableUA", state.devModeDisableUA);
         });
+        panel.querySelector('#preserve-touch-points').addEventListener('change', function(e) {
+            state.preserveTouchPoints = e.target.checked;
+            GM_setValue("preserveTouchPoints", state.preserveTouchPoints);
+        });
         panel.querySelector('#disable-hdr').addEventListener('change', function (e) {
             state.disableHDROption = e.target.checked;
             GM_setValue("disableHDR", state.disableHDROption);
@@ -1511,21 +1510,38 @@
             if (removeQualityButton) removeQualityButton.checked = state.takeOverQualityControl;
         });
     }
+
+    // 注入设置按钮相关操作
+    function ensureQualitySettingsButton(shouldInject) {
+        const qualityControl = document.querySelector('.bpx-player-ctrl-quality');
+        if (!qualityControl) return;
+        const parent = qualityControl.parentElement;
+        if (!parent) return;
+
+        const existing = parent.querySelector('.quality-settings-btn');
+        if (shouldInject) {
+            if (!existing) {
+                const settingsButton = document.createElement('div');
+                settingsButton.className = 'bpx-player-ctrl-btn quality-settings-btn';
+                settingsButton.innerHTML = '<div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="15" rx="2" ry="2"></rect><polyline points="8 20 12 20 16 20"></polyline></svg></span></div>';
+                settingsButton.addEventListener('click', toggleSettingsPanel);
+                parent.insertBefore(settingsButton, qualityControl);
+            }
+        } else if (existing) {
+            existing.remove();
+        }
+    }
     GM_registerMenuCommand("设置面板", function () {
         checkIfLivePage();
         if (state.isLivePage) toggleLiveSettingsPanel();
         else toggleSettingsPanel();
     });
     GM_registerMenuCommand("开发者选项", toggleDevSettingsPanel);
-    window.addEventListener("load", function () {
-        if (state.isLivePage) {
-            observeLineChanges();
-        }
-    });
-    window.onload = function () {
+    function initPlayerScripts() {
         checkIfLivePage();
         if (state.isLivePage) {
-            selectLiveQuality().then(() => { createLiveSettingsPanel(); });
+            observeLineChanges();
+            selectLiveQuality().then(createLiveSettingsPanel);
         } else {
             const DOM = {
                 selectors: {
@@ -1536,8 +1552,7 @@
                     vipIcon: '.bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip',
                     qualityMenu: '.bpx-player-ctrl-quality-menu',
                     qualityMenuItem: '.bpx-player-ctrl-quality-menu-item',
-                    activeQuality: '.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text',
-                    controlBottomRight: '.bpx-player-control-bottom-right'
+                    activeQuality: '.bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text'
                 },
                 elements: {},
                 get(key) {
@@ -1556,20 +1571,7 @@
                 if (qualityControl && state.takeOverQualityControl) qualityControl.classList.add('quality-button-hidden');
             }
 
-            function initQualitySettingsButton() {
-                const controlBottomRight = DOM.get('controlBottomRight');
-                const qualityControl = DOM.get('qualityControl');
-                if (controlBottomRight && qualityControl && state.injectQualityButton) {
-                    let existingSettingsBtn = controlBottomRight.querySelector('.quality-settings-btn');
-                    if (!existingSettingsBtn) {
-                        const settingsButton = document.createElement('div');
-                        settingsButton.className = 'bpx-player-ctrl-btn quality-settings-btn';
-                        settingsButton.innerHTML = '<div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="15" rx="2" ry="2"></rect><polyline points="8 20 12 20 16 20"></polyline></svg></span></div>';
-                        settingsButton.addEventListener("click", toggleSettingsPanel);
-                        qualityControl.parentElement.insertBefore(settingsButton, qualityControl);
-                    }
-                }
-            }
+            function initQualitySettingsButton() { ensureQualitySettingsButton(state.injectQualityButton); }
 
             hideQualityButton();
             initQualitySettingsButton();
@@ -1654,7 +1656,9 @@
             window.addEventListener('popstate', () => { DOM.clear(); });
             window.addEventListener('beforeunload', () => { DOM.clear(); });
         }
-    };
+    }
+    window.addEventListener("DOMContentLoaded", initPlayerScripts, { once: true });
+
     function isPlayerReady() {
         const qualityMenu = document.querySelector('.bpx-player-ctrl-quality-menu');
         const qualityItems = qualityMenu ? qualityMenu.querySelectorAll('.bpx-player-ctrl-quality-menu-item') : null;
@@ -1730,153 +1734,21 @@
             return;
         }
 
-        try {
-            const [vipElement, currentQualityEl] = await Promise.all([
-                waitForElement(() => document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip"), 3000),
-                waitForElement(() => document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text"), 3000)
-            ]);
+        // Directly query elements as the higher-level observer has already waited for them
+        const vipElement = document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip");
+        const currentQualityEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
 
-            state.isVipUser = vipElement !== null || (currentQualityEl && currentQualityEl.textContent.includes("大会员"));
-            state.vipStatusChecked = true;
-            // 缓存结果
-            state.sessionCache.vipStatus = state.isVipUser;
-            state.sessionCache.vipChecked = true;
+        state.isVipUser = vipElement !== null || (currentQualityEl && currentQualityEl.textContent.includes("大会员"));
+        state.vipStatusChecked = true;
+        // 缓存结果
+        state.sessionCache.vipStatus = state.isVipUser;
+        state.sessionCache.vipChecked = true;
 
-            console.log("[会员状态] 用户会员状态:", state.isVipUser ? "是" : "否");
-            if (state.isVipUser) {
-                console.log("[会员状态] 判定依据:", vipElement ? "发现会员图标" : "当前使用会员画质");
-            }
-        } catch (error) {
-            console.log("[会员状态] 检查超时，默认为非会员用户");
-            state.isVipUser = false;
-            state.vipStatusChecked = true;
-            // 缓存结果
-            state.sessionCache.vipStatus = state.isVipUser;
-            state.sessionCache.vipChecked = true;
+        console.log("[会员状态] 用户会员状态:", state.isVipUser ? "是" : "否");
+        if (state.isVipUser) {
+            console.log("[会员状态] 判定依据:", vipElement ? "发现会员图标" : "当前使用会员画质");
         }
     }
-
-    function waitForElement(selector, timeout = 5000) {
-        return new Promise((resolve, reject) => {
-            const element = selector();
-            if (element) {
-                resolve(element);
-                return;
-            }
-
-            const observer = new MutationObserver((mutations, obs) => {
-                const element = selector();
-                if (element) {
-                    obs.disconnect();
-                    resolve(element);
-                }
-            });
-
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['class']
-            });
-
-            if (timeout) {
-                setTimeout(() => {
-                    observer.disconnect();
-                    resolve(null);
-                }, timeout);
-            }
-        });
-    }
-
-    function createCleanupFunction() {
-        const observers = new Set();
-        const eventListeners = new Set();
-        const timeouts = new Set();
-        const intervals = new Set();
-
-        return {
-            addObserver: (observer) => observers.add(observer),
-            addEventListener: (element, type, listener) => {
-                element.addEventListener(type, listener);
-                eventListeners.add({ element, type, listener });
-            },
-            setTimeout: (callback, delay) => {
-                const id = setTimeout(callback, delay);
-                timeouts.add(id);
-                return id;
-            },
-            setInterval: (callback, delay) => {
-                const id = setInterval(callback, delay);
-                intervals.add(id);
-                return id;
-            },
-            cleanup: () => {
-                observers.forEach(observer => observer.disconnect());
-                observers.clear();
-
-                eventListeners.forEach(({ element, type, listener }) => {
-                    element.removeEventListener(type, listener);
-                });
-                eventListeners.clear();
-
-                timeouts.forEach(clearTimeout);
-                timeouts.clear();
-
-                intervals.forEach(clearInterval);
-                intervals.clear();
-            }
-        };
-    }
-
-    const cleanup = createCleanupFunction();
-
-    function initQualitySettingsButton() {
-        const controlBottomRight = DOM.get('controlBottomRight');
-        const qualityControl = DOM.get('qualityControl');
-
-        if (controlBottomRight && qualityControl && state.injectQualityButton) {
-            const existingSettingsBtn = controlBottomRight.querySelector('.quality-settings-btn');
-            if (!existingSettingsBtn) {
-                const settingsButton = document.createElement('div');
-                settingsButton.className = 'bpx-player-ctrl-btn quality-settings-btn';
-                settingsButton.innerHTML = '<div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="15" rx="2" ry="2"></rect><polyline points="8 20 12 20 16 20"></polyline></svg></span></div>';
-
-                const handleClick = () => toggleSettingsPanel();
-                settingsButton.addEventListener('click', handleClick);
-                cleanup.addEventListener(settingsButton, 'click', handleClick);
-
-                qualityControl.parentElement.insertBefore(settingsButton, qualityControl);
-            }
-        }
-    }
-
-    function observePlayerControls() {
-        const playerControls = DOM.get('playerControls');
-        if (playerControls) {
-            const observer = new MutationObserver(() => {
-                const qualityControl = DOM.refresh('qualityControl');
-                if (qualityControl) {
-                    hideQualityButton();
-                    initQualitySettingsButton();
-                }
-            });
-
-            observer.observe(playerControls, {
-                childList: true,
-                subtree: true,
-                attributes: false
-            });
-
-            cleanup.addObserver(observer);
-        }
-    }
-
-    // 清理资源
-    window.addEventListener('beforeunload', () => {
-        cleanup.cleanup();
-    });
-
-    let currentUrlChangeTaskId = 0;
     function canonicalUrl(rawUrl) {
         try {
             const urlObj = new URL(rawUrl);
