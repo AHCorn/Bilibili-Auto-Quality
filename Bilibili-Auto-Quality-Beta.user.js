@@ -93,7 +93,7 @@
         } else {
             console.log("[开发者模式] 已禁用 UA 修改");
         }
-        if (state.preserveTouchPoints) {
+        if (state.devModeEnabled && state.preserveTouchPoints) {
             console.log("[系统设置] 用户配置保留触控点，跳过 maxTouchPoints 修改");
         } else if (!state.devModeDisableUA || !state.devModeEnabled) {
             const pointerType = detectPointerType();
@@ -1078,7 +1078,7 @@
             };
         });
 
-        if (state.disableHDROption) {
+        if (state.devModeEnabled && state.disableHDROption) {
             availableQualities = availableQualities.filter(q => q.name.indexOf("HDR") === -1);
         }
         
@@ -1140,8 +1140,8 @@
         }
         console.log("[画质设置] 实际目标画质: " + targetQuality.name);
         targetQuality.element.click();
-        if (state.qualityDoubleCheck) {
-            await Utils.delay(state.devDoubleCheckDelay);
+        if (state.devModeEnabled ? state.qualityDoubleCheck : true) {
+            await Utils.delay(state.devModeEnabled ? state.devDoubleCheckDelay : 5000);
             const currentQualityAfterSwitchEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
             const currentQualityAfterSwitch = currentQualityAfterSwitchEl ? currentQualityAfterSwitchEl.textContent : "";
             if (currentQualityAfterSwitch && cleanQuality(currentQualityAfterSwitch) !== cleanQuality(targetQuality.name)) {
@@ -1236,7 +1236,7 @@
                 state.userLiveQualitySetting = targetQuality.desc;
                 GM_setValue("liveQualitySetting", state.userLiveQualitySetting);
                 updateLiveSettingsPanel();
-                if (state.liveQualityDoubleCheck) {
+                if (state.devModeEnabled ? state.liveQualityDoubleCheck : true) {
                     setTimeout(() => {
                         const currentQualityAfterSwitch = unsafeWindow.livePlayer.getPlayerInfo().quality;
                         if (currentQualityAfterSwitch !== targetQuality.qn) {
@@ -1245,7 +1245,7 @@
                         } else {
                             console.log("[直播画质] 画质切换验证成功，当前画质:", targetQuality.desc);
                         }
-                    }, 5000);
+                    }, state.devModeEnabled ? state.devDoubleCheckDelay : 5000);
                 }
             } else {
                 console.log("[直播画质] 已经是目标画质:", targetQuality.desc);
@@ -1568,7 +1568,9 @@
 
             function hideQualityButton() {
                 const qualityControl = DOM.get('qualityButton');
-                if (qualityControl && state.takeOverQualityControl) qualityControl.classList.add('quality-button-hidden');
+                if (qualityControl && state.devModeEnabled && state.takeOverQualityControl) {
+                    qualityControl.classList.add('quality-button-hidden');
+                }
             }
 
             function initQualitySettingsButton() { ensureQualitySettingsButton(state.injectQualityButton); }
