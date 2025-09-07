@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.0-Beta
+// @version      5.0.1-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -1329,8 +1329,6 @@
             if (currentQualityNumber !== targetQuality.qn) {
                 unsafeWindow.livePlayer.switchQuality(targetQuality.qn);
                 console.log("[直播画质] 已切换到目标画质:", targetQuality.desc);
-                state.userLiveQualitySetting = targetQuality.desc;
-                GM_setValue("liveQualitySetting", state.userLiveQualitySetting);
                 updateLiveSettingsPanel();
                 if (state.devModeEnabled ? state.liveQualityDoubleCheck : true) {
                     setTimeout(() => {
