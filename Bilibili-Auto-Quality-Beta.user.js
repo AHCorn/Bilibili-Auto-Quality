@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.0.1-Beta
+// @version      5.1-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -48,6 +48,8 @@
         isLoading: true,
         isLivePage: false,
         userLiveQualitySetting: GM_getValue("liveQualitySetting", "最高画质"),
+        userLiveDecodeSetting: GM_getValue("liveDecodeSetting", "默认"),
+        userVideoDecodeSetting: GM_getValue("videoDecodeSetting", "默认"),
         devModeEnabled: GM_getValue("devModeEnabled", false),
         devModeVipStatus: GM_getValue("devModeVipStatus", false),
         devModeNoLoginStatus: GM_getValue("devModeNoLoginStatus", false),
@@ -129,7 +131,7 @@
         console.error("[解锁设置] 修改 UA 或 maxTouchPoints 失败:", error);
     }
     GM_addStyle(`
-    #bilibili-quality-selector, #bilibili-live-quality-selector, #bilibili-dev-settings, #bilibili-unlock-settings {
+    #bilibili-quality-selector, #bilibili-live-quality-selector, #bilibili-dev-settings, #bilibili-unlock-settings, #bilibili-decode-settings {
         position: fixed;
         top: 50%;
         left: 50%;
@@ -195,7 +197,7 @@
     .toggle-switch.show {
         display: flex;
     }
-    #bilibili-quality-selector h2, #bilibili-live-quality-selector h2 {
+    #bilibili-quality-selector h2, #bilibili-live-quality-selector h2, #bilibili-decode-settings h2 {
         margin: 0 0 20px;
         color: #00a1d6;
         font-size: 28px;
@@ -320,12 +322,12 @@
         from { transform: translate(-50%, -60%); }
         to { transform: translate(-50%, -50%); }
     }
-    #bilibili-quality-selector.show, #bilibili-live-quality-selector.show {
+    #bilibili-quality-selector.show, #bilibili-live-quality-selector.show, #bilibili-decode-settings.show {
         display: block;
         animation: fadeIn 0.3s ease-out, slideIn 0.3s ease-out;
     }
     @media (max-width: 480px) {
-        #bilibili-quality-selector, #bilibili-live-quality-selector, #bilibili-dev-settings, #bilibili-unlock-settings {
+        #bilibili-quality-selector, #bilibili-live-quality-selector, #bilibili-dev-settings, #bilibili-unlock-settings, #bilibili-decode-settings {
             width: 95%;
             padding: 20px;
             max-height: 80vh;
@@ -376,6 +378,14 @@
             right: 20px;
             width: 20px;
             height: 20px;
+        }
+        #bilibili-decode-settings .quality-group {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        #bilibili-decode-settings .quality-button {
+            padding: 10px 8px;
+            font-size: 14px;
         }
         h2 {
             font-size: 24px !important;
@@ -786,10 +796,19 @@
         border-color: #00a1d6;
         box-shadow: 0 6px 12px rgba(0, 161, 214, 0.3);
     }
+    #bilibili-decode-settings .quality-group {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    #bilibili-decode-settings .quality-button {
+        padding: 12px 10px;
+        font-size: 15px;
+    }
     #bilibili-quality-selector,
     #bilibili-live-quality-selector,
     #bilibili-dev-settings,
-    #bilibili-unlock-settings {
+    #bilibili-unlock-settings,
+    #bilibili-decode-settings {
         -ms-overflow-style: none;
         scrollbar-width: none;
     }
@@ -1259,27 +1278,14 @@
         function updatePanel() {
             const qualityCandidates = unsafeWindow.livePlayer.getPlayerInfo().qualityCandidates;
             const LIVE_QUALITIES = ["最高画质", "1080P 原画", "1080P 蓝光", "720P 超清"];
-            const lineSelector = document.querySelector(".YccudlUCmLKcUTg_yzKN");
-            const lines = lineSelector ? Array.from(lineSelector.children).map(li => li.textContent) : ["加载中..."];
-            const currentLineIndex = lineSelector ? Array.from(lineSelector.children).findIndex(li => li.classList.contains("fG2r2piYghHTQKQZF8bl")) : 0;
             panel.innerHTML = `
             <h2>直播设置</h2>
             ${renderGithubLink()}
-            <div class="quality-section-title">线路选择</div>
-            <div class="line-group">
-              ${lines.map((line, index) => `<button class="line-button ${index === currentLineIndex ? 'active' : ''}" data-line="${index}">${line}</button>`).join('')}
-            </div>
             <div class="quality-section-title">画质选择</div>
             <div class="live-quality-group">
               ${LIVE_QUALITIES.map(quality => `<button class="live-quality-button ${quality === state.userLiveQualitySetting ? 'active' : ''}" data-quality="${quality}">${quality}</button>`).join('')}
             </div>
           `;
-            panel.querySelectorAll(".line-button").forEach(button => {
-                button.addEventListener("click", () => {
-                    const lineIndex = parseInt(button.getAttribute("data-line"), 10);
-                    changeLine(lineIndex);
-                });
-            });
             panel.querySelectorAll(".live-quality-button").forEach(button => {
                 button.addEventListener("click", () => {
                     state.userLiveQualitySetting = button.getAttribute("data-quality");
@@ -1380,6 +1386,112 @@
     function updateLiveSettingsPanel() {
         const panel = document.getElementById("bilibili-live-quality-selector");
         if (panel && typeof panel.updatePanel === "function") panel.updatePanel();
+    }
+    function createDecodeSettingsPanel() {
+        const panel = document.createElement("div");
+        panel.id = "bilibili-decode-settings";
+        const OPTIONS = ["默认", "AV1", "HEVC", "AVC"];
+        panel.innerHTML = `
+          <h2>解码设置</h2>
+          ${renderGithubLink()}
+          <div class="quality-section-title">解码策略</div>
+          <div class="quality-group">
+            ${OPTIONS.map(o => `<button class="quality-button ${(state.isLivePage ? state.userLiveDecodeSetting : state.userVideoDecodeSetting) === o ? 'active' : ''}" data-decode="${o}">${o}</button>`).join('')}
+          </div>
+        `;
+        panel.addEventListener("click", function (e) {
+            const target = e.target;
+            if (target.classList.contains("quality-button")) {
+                const value = target.getAttribute("data-decode");
+                if (state.isLivePage) {
+                    state.userLiveDecodeSetting = value;
+                    GM_setValue("liveDecodeSetting", value);
+                } else {
+                    state.userVideoDecodeSetting = value;
+                    GM_setValue("videoDecodeSetting", value);
+                }
+                Utils.queryAll(".quality-button", panel).forEach(btn => {
+                    btn.classList.toggle("active", btn === target);
+                });
+                applyDecodeSetting();
+            }
+        });
+        document.body.appendChild(panel);
+    }
+    function updateDecodeButtons(panel) {
+        if (!panel) return;
+        Utils.queryAll('.quality-button', panel).forEach(btn => {
+            const wanted = state.isLivePage ? state.userLiveDecodeSetting : state.userVideoDecodeSetting;
+            btn.classList.toggle('active', btn.getAttribute('data-decode') === (wanted || '默认'));
+        });
+    }
+    function toggleDecodeSettingsPanel() {
+        togglePanel("bilibili-decode-settings", createDecodeSettingsPanel, updateDecodeButtons);
+    }
+    function applyDecodeSetting(retryCount = 0) {
+        const maxRetries = 8;
+        const wanted = state.isLivePage ? (state.userLiveDecodeSetting || '默认') : (state.userVideoDecodeSetting || '默认');
+        // 直播页：点击 UL 列表项
+        if (state.isLivePage) {
+            const decodeList = document.querySelector('.YccudlUCmLKcUTg_yzKN');
+            if (!decodeList) {
+                if (retryCount < maxRetries) {
+                    setTimeout(() => applyDecodeSetting(retryCount + 1), 1000);
+                } else {
+                    console.log('[解码设置] 未找到直播解码列表');
+                }
+                return;
+            }
+            const items = Array.from(decodeList.querySelectorAll('li.HfodaIBaRC9NaglgykBX'));
+            if (items.length === 0) {
+                if (retryCount < maxRetries) {
+                    setTimeout(() => applyDecodeSetting(retryCount + 1), 1000);
+                } else {
+                    console.log('[解码设置] 直播解码选项为空');
+                }
+                return;
+            }
+            const selectedClass = 'fG2r2piYghHTQKQZF8bl';
+            let target = items.find(li => (li.textContent || '').trim().includes(wanted)) || items[0];
+            if (!target) return;
+            if (target.classList.contains(selectedClass)) {
+                console.log('[解码设置] 直播页已是目标解码:', (target.textContent || '').trim());
+            } else {
+                console.log('[解码设置] 直播页切换解码为:', (target.textContent || '').trim());
+                target.click();
+            }
+        } else {
+            // 视频页：点击 bui-radio 按钮
+            const radioItems = Array.from(document.querySelectorAll('.bui-radio-wrap.bui-radio-button .bui-radio-item'));
+            if (radioItems.length === 0) {
+                if (retryCount < maxRetries) {
+                    setTimeout(() => applyDecodeSetting(retryCount + 1), 1000);
+                } else {
+                    console.log('[解码设置] 未找到视频页编码单选项');
+                }
+                return;
+            }
+            function getText(el) {
+                const t = el.querySelector('.bui-radio-text');
+                return (t && t.textContent ? t.textContent : el.textContent || '').trim();
+            }
+            let target = radioItems.find(el => getText(el).includes(wanted));
+            if (!target) {
+                // 兜底：若未匹配到，优先第一个
+                target = radioItems[0];
+            }
+            if (!target) return;
+            // 若已选中则跳过
+            const input = target.querySelector('input.bui-radio-input');
+            if (input && (input.checked || input.getAttribute('checked') !== null)) {
+                console.log('[解码设置] 视频页已是目标解码:', getText(target));
+            } else {
+                console.log('[解码设置] 视频页切换解码为:', getText(target));
+                (input || target).click();
+            }
+        }
+        const panel = document.getElementById('bilibili-decode-settings');
+        if (panel) updateDecodeButtons(panel);
     }
     function createUnlockSettingsPanel() {
         const panel = document.createElement("div");
@@ -1624,7 +1736,7 @@
             }
         }
         if (!panel.classList.contains("show")) {
-            ["bilibili-quality-selector", "bilibili-live-quality-selector", "bilibili-dev-settings", "bilibili-unlock-settings"].forEach(id => {
+            ["bilibili-quality-selector", "bilibili-live-quality-selector", "bilibili-dev-settings", "bilibili-unlock-settings", "bilibili-decode-settings"].forEach(id => {
                 if (id !== panelId) {
                     const otherPanel = document.getElementById(id);
                     if (otherPanel && otherPanel.classList.contains("show")) otherPanel.classList.remove("show");
@@ -1679,13 +1791,16 @@
         if (state.isLivePage) toggleLiveSettingsPanel();
         else toggleSettingsPanel();
     });
+    GM_registerMenuCommand("解码设置", function () {
+        checkIfLivePage();
+        toggleDecodeSettingsPanel();
+    });
     GM_registerMenuCommand("解锁设置", toggleUnlockSettingsPanel);
     GM_registerMenuCommand("开发者设置", toggleDevSettingsPanel);
     function initPlayerScripts() {
         checkIfLivePage();
         if (state.isLivePage) {
-            observeLineChanges();
-            selectLiveQuality().then(createLiveSettingsPanel);
+            selectLiveQuality().then(() => { createLiveSettingsPanel(); applyDecodeSetting(); });
         } else {
             const DOM = {
                 selectors: {
@@ -1745,6 +1860,7 @@
                         await checkVipStatusAsync();
                         await selectVideoQuality();
                         updateQualityButtons(Utils.query("#bilibili-quality-selector"));
+                        applyDecodeSetting();
                     }, 5, 1000, 0);
                     return;
                 }
@@ -1768,6 +1884,7 @@
                             await checkVipStatusAsync();
                             await selectVideoQuality();
                             updateQualityButtons(Utils.query("#bilibili-quality-selector"));
+                            applyDecodeSetting();
                         }, 5, 1000, 0);
                     };
 
@@ -1963,8 +2080,10 @@
                             checkIfLivePage();
                             if (state.isLivePage) {
                                 await selectLiveQuality();
+                                applyDecodeSetting();
                             } else {
                                 await selectVideoQuality();
+                                applyDecodeSetting();
                             }
                             if (panel) updateQualityButtons(panel);
                             console.log(`[任务管理] 任务 #${taskId}: 画质设置完成`);
