@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.1-Beta
+// @version      5.1.1-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -2001,7 +2001,26 @@
         const vipElement = document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip");
         const currentQualityEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
 
-        state.isVipUser = vipElement !== null || (currentQualityEl && currentQualityEl.textContent.includes("大会员"));
+        const hasVipIcon = vipElement !== null;
+        const isVipByQuality = !!(currentQualityEl && currentQualityEl.textContent && currentQualityEl.textContent.includes("大会员"));
+        const avatarPopover = document.querySelector(".v-popover-content.avatar-popover");
+        const vipTitleEl = avatarPopover ? avatarPopover.querySelector(".vip-entry-desc .vip-entry-desc-title") : null;
+        const isVipByVipEntryTitle = !!(vipTitleEl && ((vipTitleEl.textContent || "").trim().includes("我的大会员")));
+
+        // 兜底：昵称颜色判定
+        let isVipByNicknameColor = false;
+        if (!hasVipIcon && !isVipByQuality && !isVipByVipEntryTitle && avatarPopover) {
+            const nicknameEl = avatarPopover.querySelector(".nickname-item.light");
+            if (nicknameEl) {
+                const colorValue = (nicknameEl.style && nicknameEl.style.color ? nicknameEl.style.color : "").trim();
+                // 只要不是默认的 var(--text1) 即视为会员
+                if (colorValue && !/^var\(--text1\)$/i.test(colorValue)) {
+                    isVipByNicknameColor = true;
+                }
+            }
+        }
+
+        state.isVipUser = hasVipIcon || isVipByQuality || isVipByVipEntryTitle || isVipByNicknameColor;
         state.vipStatusChecked = true;
         // 缓存结果
         state.sessionCache.vipStatus = state.isVipUser;
@@ -2009,7 +2028,8 @@
 
         console.log("[会员状态] 用户会员状态:", state.isVipUser ? "是" : "否");
         if (state.isVipUser) {
-            console.log("[会员状态] 判定依据:", vipElement ? "发现会员图标" : "当前使用会员画质");
+            const reason = hasVipIcon ? "发现会员图标" : (isVipByQuality ? "当前使用会员画质" : (isVipByVipEntryTitle ? "会员入口显示为大会员" : "昵称颜色非默认"));
+            console.log("[会员状态] 判定依据:", reason);
         }
     }
     function canonicalUrl(rawUrl) {
