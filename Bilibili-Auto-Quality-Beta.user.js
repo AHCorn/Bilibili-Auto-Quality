@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.1.2-Beta
+// @version      5.1.3-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -51,7 +51,7 @@
         userLiveDecodeSetting: GM_getValue("liveDecodeSetting", "默认"),
         userVideoDecodeSetting: GM_getValue("videoDecodeSetting", "默认"),
         devModeEnabled: GM_getValue("devModeEnabled", false),
-        devModeVipStatus: GM_getValue("devModeVipStatus", false),
+        devModeVipStatus: GM_getValue("devModeVipStatus", "默认"),
         devModeNoLoginStatus: GM_getValue("devModeNoLoginStatus", false),
         preserveTouchPoints: GM_getValue("preserveTouchPoints", false),
         devModeAudioRetries: GM_getValue("devModeAudioRetries", 2),
@@ -188,6 +188,74 @@
     .quality-tabs[data-active="backup"] .tab-indicator { transform: translateX(100%); background: #f25d8e; }
     .quality-tabs[data-active="primary"] .quality-tab[data-tab="primary"],
     .quality-tabs[data-active="backup"] .quality-tab[data-tab="backup"] { color: #fff; }
+    .vip-status-section {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 15px;
+        margin-bottom: 16px;
+        border: 1px solid #e5e7eb;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 1px rgba(0,0,0,0.02);
+    }
+    
+    .vip-status-title {
+        font-size: 16px;
+        color: #3c4043;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+    .vip-status-description {
+        font-size: 13px;
+        color: #666;
+        margin-bottom: 12px;
+        line-height: 1.4;
+    }
+    .vip-status-tabs {
+        display: flex;
+        border-radius: 12px;
+        background: #e8eaed;
+        padding: 4px;
+        position: relative;
+    }
+    .vip-status-tabs.disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    .vip-tab-indicator {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: calc((100% - 8px) / 3);
+        height: calc(100% - 8px);
+        border-radius: 8px;
+        background: #00a1d6;
+        transition: transform 0.35s ease, background-color 0.35s ease;
+        z-index: 0;
+    }
+    .vip-status-tab {
+        flex: 1;
+        padding: 8px;
+        text-align: center;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        color: #666;
+        font-weight: 600;
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .vip-status-tabs.disabled .vip-status-tab {
+        cursor: not-allowed;
+    }
+    .vip-status-tabs[data-active="默认"] .vip-tab-indicator { transform: translateX(0); background: #00a1d6; }
+    .vip-status-tabs[data-active="普通"] .vip-tab-indicator { transform: translateX(100%); background: #666; }
+    .vip-status-tabs[data-active="会员"] .vip-tab-indicator { transform: translateX(200%); background: #f25d8e; }
+    .vip-status-tabs[data-active="默认"] .vip-status-tab[data-status="默认"],
+    .vip-status-tabs[data-active="普通"] .vip-status-tab[data-status="普通"],
+    .vip-status-tabs[data-active="会员"] .vip-status-tab[data-status="会员"] { color: #fff; }
     .quality-button-hidden {
         display: none !important;
     }
@@ -831,14 +899,52 @@
             return Array.from(parent.querySelectorAll(selector));
         }
     };
+    const PANEL_IDS = [
+        "bilibili-quality-selector",
+        "bilibili-live-quality-selector",
+        "bilibili-dev-settings",
+        "bilibili-unlock-settings",
+        "bilibili-decode-settings"
+    ];
+    const QUALITY_ORDER = [
+        "8K",
+        "杜比视界",
+        "HDR",
+        "4K",
+        "1080P 高码率",
+        "1080P 60帧",
+        "1080P 高清",
+        "720P 60帧",
+        "720P",
+        "480P",
+        "360P",
+        "默认"
+    ];
+    function setSetting(stateKey, gmKey, value) {
+        state[stateKey] = value;
+        GM_setValue(gmKey, value);
+    }
+    function getDoubleCheckConfig(isLive) {
+        const enabled = state.devModeEnabled ? (isLive ? state.liveQualityDoubleCheck : state.qualityDoubleCheck) : true;
+        const delayMs = state.devModeEnabled ? state.devDoubleCheckDelay : 5000;
+        return { enabled, delayMs };
+    }
+    function setDevPanelEnabled(panel, enabled) {
+        panel.querySelectorAll('input[type="checkbox"]:not(#dev-mode), input[type="number"]').forEach(option => {
+            option.disabled = !enabled;
+        });
+        panel.querySelectorAll('.input-group').forEach(group => {
+            if (enabled) {
+                group.classList.remove('disabled');
+            } else {
+                group.classList.add('disabled');
+            }
+        });
+        const vipTabs = panel.querySelector('.vip-status-tabs');
+        if (vipTabs) vipTabs.classList.toggle('disabled', !enabled);
+    }
     function closeAllPanels() {
-        [
-            "bilibili-quality-selector",
-            "bilibili-live-quality-selector",
-            "bilibili-dev-settings",
-            "bilibili-unlock-settings",
-            "bilibili-decode-settings"
-        ].forEach(id => {
+        PANEL_IDS.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.remove("show");
         });
@@ -1226,7 +1332,7 @@
         console.log("[画质设置] 可用画质:", availableQualities.map(q => q.name));
         console.log("[画质设置] 会员状态:", state.isVipUser ? "是" : "否");
 
-        const qualityPreferences = ["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧", "1080P 高清", "720P 60帧", "720P", "480P", "360P", "默认"];
+        const qualityPreferences = QUALITY_ORDER;
         let targetQuality;
         function cleanQuality(q) { return q ? q.replace(/大会员|限免中/g, '').trim() : ""; }
         if (state.userQualitySetting === "最高画质") {
@@ -1272,8 +1378,13 @@
         }
         console.log("[画质设置] 实际目标画质: " + targetQuality.name);
         targetQuality.element.click();
-        if (state.devModeEnabled ? state.qualityDoubleCheck : true) {
-            await Utils.delay(state.devModeEnabled ? state.devDoubleCheckDelay : 5000);
+        {
+            const { enabled, delayMs } = getDoubleCheckConfig(false);
+            if (enabled) {
+                await Utils.delay(delayMs);
+            } else {
+                // 无
+            }
             const currentQualityAfterSwitchEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
             const currentQualityAfterSwitch = currentQualityAfterSwitchEl ? currentQualityAfterSwitchEl.textContent : "";
             if (currentQualityAfterSwitch && cleanQuality(currentQualityAfterSwitch) !== cleanQuality(targetQuality.name)) {
@@ -1349,8 +1460,9 @@
                 unsafeWindow.livePlayer.switchQuality(targetQuality.qn);
                 console.log("[直播画质] 已切换到目标画质:", targetQuality.desc);
                 updateLiveSettingsPanel();
-                if (state.devModeEnabled ? state.liveQualityDoubleCheck : true) {
-                    setTimeout(() => {
+                {
+                    const { enabled, delayMs } = getDoubleCheckConfig(true);
+                    if (enabled) setTimeout(() => {
                         const currentQualityAfterSwitch = unsafeWindow.livePlayer.getPlayerInfo().quality;
                         if (currentQualityAfterSwitch !== targetQuality.qn) {
                             console.log("[直播画质] 画质切换可能未成功，执行二次切换...");
@@ -1358,7 +1470,7 @@
                         } else {
                             console.log("[直播画质] 画质切换验证成功，当前画质:", targetQuality.desc);
                         }
-                    }, state.devModeEnabled ? state.devDoubleCheckDelay : 5000);
+                    }, delayMs);
                 }
             } else {
                 console.log("[直播画质] 已经是目标画质:", targetQuality.desc);
@@ -1583,6 +1695,16 @@
               <span class="slider"></span>
             </label>
           </div>
+          <div class="vip-status-section">
+            <div class="vip-status-title">模拟会员状态</div>
+            <div class="vip-status-description">模拟脚本所识别到的大会员状态，<b>并非破解</b></div>
+            <div class="vip-status-tabs ${!state.devModeEnabled ? 'disabled' : ''}" data-active="${state.devModeVipStatus}">
+              <div class="vip-tab-indicator"></div>
+              <div class="vip-status-tab ${state.devModeVipStatus === '默认' ? 'active' : ''}" data-status="默认">默认</div>
+              <div class="vip-status-tab ${state.devModeVipStatus === '普通' ? 'active' : ''}" data-status="普通">普通</div>
+              <div class="vip-status-tab ${state.devModeVipStatus === '会员' ? 'active' : ''}" data-status="会员">会员</div>
+            </div>
+          </div>
           <div class="toggle-switch">
             <label for="quality-double-check">
               视频画质二次验证
@@ -1600,16 +1722,6 @@
             </label>
             <label class="switch">
               <input type="checkbox" id="live-quality-double-check" ${state.liveQualityDoubleCheck ? 'checked' : ''} ${!state.devModeEnabled ? 'disabled' : ''}>
-              <span class="slider"></span>
-            </label>
-          </div>
-          <div class="toggle-switch">
-            <label for="dev-vip">
-              模拟大会员状态
-              <div class="description">模拟脚本所识别到的大会员状态，<b>并非破解</b></div>
-            </label>
-            <label class="switch">
-              <input type="checkbox" id="dev-vip" ${state.devModeVipStatus ? 'checked' : ''} ${!state.devModeEnabled ? 'disabled' : ''}>
               <span class="slider"></span>
             </label>
           </div>
@@ -1684,52 +1796,48 @@
         `;
         document.body.appendChild(panel);
         panel.querySelector('#dev-mode').addEventListener('change', function (e) {
-            state.devModeEnabled = e.target.checked;
-            GM_setValue("devModeEnabled", state.devModeEnabled);
-
-            const devOptions = panel.querySelectorAll('input[type="checkbox"]:not(#dev-mode), input[type="number"]');
-            devOptions.forEach(option => {
-                option.disabled = !state.devModeEnabled;
-            });
-
-            const inputGroups = panel.querySelectorAll('.input-group');
-            inputGroups.forEach(group => {
-                if (state.devModeEnabled) {
-                    group.classList.remove('disabled');
-                } else {
-                    group.classList.add('disabled');
-                }
-            });
+            setSetting("devModeEnabled", "devModeEnabled", e.target.checked);
+            setDevPanelEnabled(panel, state.devModeEnabled);
         });
         panel.querySelector('#quality-double-check').addEventListener('change', function (e) {
-            state.qualityDoubleCheck = e.target.checked;
-            GM_setValue("qualityDoubleCheck", state.qualityDoubleCheck);
+            setSetting("qualityDoubleCheck", "qualityDoubleCheck", e.target.checked);
         });
         panel.querySelector('#live-quality-double-check').addEventListener('change', function (e) {
-            state.liveQualityDoubleCheck = e.target.checked;
-            GM_setValue("liveQualityDoubleCheck", state.liveQualityDoubleCheck);
+            setSetting("liveQualityDoubleCheck", "liveQualityDoubleCheck", e.target.checked);
         });
-        panel.querySelector('#dev-vip').addEventListener('change', function (e) {
-            state.devModeVipStatus = e.target.checked;
-            GM_setValue("devModeVipStatus", state.devModeVipStatus);
-        });
+        // 会员状态按钮点击事件
+        const vipStatusTabs = panel.querySelector('.vip-status-tabs');
+        if (vipStatusTabs) {
+            vipStatusTabs.addEventListener('click', function (e) {
+                if (!state.devModeEnabled) return;
+                const target = e.target;
+                if (target.classList.contains('vip-status-tab')) {
+                    const status = target.getAttribute('data-status');
+                    setSetting("devModeVipStatus", "devModeVipStatus", status);
+                    
+                    // 更新UI状态
+                    vipStatusTabs.setAttribute('data-active', status);
+                    vipStatusTabs.querySelectorAll('.vip-status-tab').forEach(tab => {
+                        tab.classList.toggle('active', tab.getAttribute('data-status') === status);
+                    });
+                    
+                    console.log(`[开发者模式] 会员状态设置为: ${status}`);
+                }
+            });
+        }
         panel.querySelector('#dev-no-login').addEventListener('change', function (e) {
-            state.devModeNoLoginStatus = e.target.checked;
-            GM_setValue("devModeNoLoginStatus", state.devModeNoLoginStatus);
+            setSetting("devModeNoLoginStatus", "devModeNoLoginStatus", e.target.checked);
         });
 
         panel.querySelector('#preserve-touch-points').addEventListener('change', function(e) {
-            state.preserveTouchPoints = e.target.checked;
-            GM_setValue("preserveTouchPoints", state.preserveTouchPoints);
+            setSetting("preserveTouchPoints", "preserveTouchPoints", e.target.checked);
         });
         panel.querySelector('#disable-hdr').addEventListener('change', function (e) {
-            state.disableHDROption = e.target.checked;
-            GM_setValue("disableHDR", state.disableHDROption);
+            setSetting("disableHDROption", "disableHDR", e.target.checked);
         });
 
         panel.querySelector('#remove-quality-button').addEventListener('change', function (e) {
-            state.takeOverQualityControl = e.target.checked;
-            GM_setValue("takeOverQualityControl", state.takeOverQualityControl);
+            setSetting("takeOverQualityControl", "takeOverQualityControl", e.target.checked);
         });
         panel.querySelector('.refresh-button').addEventListener('click', function () {
             location.reload();
@@ -1752,7 +1860,7 @@
             }
         }
         if (!panel.classList.contains("show")) {
-            ["bilibili-quality-selector", "bilibili-live-quality-selector", "bilibili-dev-settings", "bilibili-unlock-settings", "bilibili-decode-settings"].forEach(id => {
+            PANEL_IDS.forEach(id => {
                 if (id !== panelId) {
                     const otherPanel = document.getElementById(id);
                     if (otherPanel && otherPanel.classList.contains("show")) otherPanel.classList.remove("show");
@@ -1776,6 +1884,15 @@
         togglePanel("bilibili-dev-settings", createDevSettingsPanel, function (panel) {
             const removeQualityButton = panel.querySelector('#remove-quality-button');
             if (removeQualityButton) removeQualityButton.checked = state.takeOverQualityControl;
+            
+            // 更新会员状态UI
+            const vipStatusTabs = panel.querySelector('.vip-status-tabs');
+            if (vipStatusTabs) {
+                vipStatusTabs.setAttribute('data-active', state.devModeVipStatus);
+                vipStatusTabs.querySelectorAll('.vip-status-tab').forEach(tab => {
+                    tab.classList.toggle('active', tab.getAttribute('data-status') === state.devModeVipStatus);
+                });
+            }
         });
     }
     function toggleUnlockSettingsPanel() {
@@ -2005,7 +2122,18 @@
             }
 
             // 模拟大会员状态
-            state.isVipUser = state.devModeVipStatus;
+            if (state.devModeVipStatus === "会员") {
+                state.isVipUser = true;
+            } else if (state.devModeVipStatus === "普通") {
+                state.isVipUser = false;
+            } else {
+                // 默认状态：不干预，保持原有检测逻辑
+                const vipElement = document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip");
+                const currentQualityEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
+                const hasVipIcon = vipElement !== null;
+                const isVipByQuality = !!(currentQualityEl && currentQualityEl.textContent && currentQualityEl.textContent.includes("大会员"));
+                state.isVipUser = hasVipIcon || isVipByQuality;
+            }
             state.vipStatusChecked = true;
             state.sessionCache.vipStatus = state.isVipUser;
             state.sessionCache.vipChecked = true;
@@ -2096,22 +2224,7 @@
                             console.log(`[任务管理] 任务 #${taskId}: 播放器就绪，开始初始化画质设置`);
                             state.isLoading = false;
 
-                            if (state.devModeEnabled && state.devModeNoLoginStatus) {
-                                state.isVipUser = false;
-                                state.vipStatusChecked = true;
-                                state.sessionCache.vipStatus = false;
-                                state.sessionCache.vipChecked = true;
-                                console.log("[未登录模式] 非会员状态");
-                            }
-                            // 第二次切换就用缓存
-                            else if (!state.sessionCache.vipChecked) {
-                                console.log("[会员状态] 首次检查会员状态");
-                                await checkVipStatusAsync();
-                            } else {
-                                state.isVipUser = state.sessionCache.vipStatus;
-                                state.vipStatusChecked = true;
-                                console.log("[会员状态] 使用缓存状态:", state.isVipUser ? "是" : "否");
-                            }
+                            await checkVipStatusAsync();
 
                             checkIfLivePage();
                             if (state.isLivePage) {
