@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.1.3-Beta
+// @version      5.1.5-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -278,13 +278,7 @@
         gap: 12px;
         margin-bottom: 25px;
     }
-    .line-group {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
-        margin-bottom: 25px;
-    }
-    .quality-button, .line-button {
+    .quality-button {
         background-color: #ffffff;
         border: 1px solid #e5e7eb;
         border-radius: 12px;
@@ -297,16 +291,12 @@
         text-align: center;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 1px rgba(0,0,0,0.02);
     }
-    .line-button {
-        font-size: 12px;
-        padding: 8px 4px;
-    }
-    .quality-button:hover, .line-button:hover {
+    .quality-button:hover {
         background-color: #f7f9fb;
         transform: translateY(-2px);
         box-shadow: 0 3px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.035);
     }
-    .quality-button.active, .line-button.active {
+    .quality-button.active {
         background-color: #00a1d6;
         color: white;
         border-color: #00a1d6;
@@ -404,11 +394,7 @@
             grid-template-columns: repeat(2, 1fr);
             gap: 8px;
         }
-        .line-group {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-        }
-        .quality-button, .line-button {
+        .quality-button {
             padding: 8px 6px;
             font-size: 13px;
         }
@@ -488,7 +474,7 @@
             max-height: 90vh;
             padding: 15px;
         }
-        .quality-group, .line-group {
+        .quality-group {
             margin-bottom: 15px;
         }
         .toggle-switch {
@@ -1055,7 +1041,6 @@
             </div>
           </div>
           <div id="non-vip-warning" class="warning" style="display:none;"></div>
-          <div id="quality-warning" class="warning" style="display:none;"></div>
           <div class="toggle-switch">
             <label for="hi-res-audio">Hi-Res 音质</label>
             <label class="switch">
@@ -1477,36 +1462,6 @@
             }
         }
         switchQuality();
-    }
-    function changeLine(lineIndex) {
-        const lineSelector = document.querySelector(".YccudlUCmLKcUTg_yzKN");
-        if (lineSelector && lineSelector.children[lineIndex]) {
-            lineSelector.children[lineIndex].click();
-            console.log("[直播线路] 已切换到线路:", lineSelector.children[lineIndex].textContent);
-            const panel = document.getElementById("bilibili-live-quality-selector");
-            if (panel) {
-                Utils.queryAll(".line-button", panel).forEach((button, index) => {
-                    button.classList.toggle("active", index === lineIndex);
-                });
-            }
-        } else {
-            console.log("[直播线路] 无法切换线路");
-        }
-    }
-    function observeLineChanges() {
-        const lineSelector = document.querySelector(".YccudlUCmLKcUTg_yzKN");
-        if (lineSelector) {
-            const observer = new MutationObserver(Utils.debounce(mutations => {
-                mutations.forEach(mutation => {
-                    if (mutation.type === "attributes" && mutation.attributeName === "class") {
-                        Array.from(lineSelector.children).forEach(li => {
-                            if (li.classList.contains("fG2r2piYghHTQKQZF8bl")) updateLiveSettingsPanel();
-                        });
-                    }
-                });
-            }, 300));
-            observer.observe(lineSelector, { attributes: true, subtree: true, attributeFilter: ["class"] });
-        }
     }
     function updateLiveSettingsPanel() {
         const panel = document.getElementById("bilibili-live-quality-selector");
