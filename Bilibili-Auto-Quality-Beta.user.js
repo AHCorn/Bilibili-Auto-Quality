@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.1.5-Beta
+// @version      5.1.6-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -740,32 +740,7 @@
     .quality-section {
         margin-bottom: 20px;
     }
-    .quality-settings-btn {
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        width: 40px;
-        height: 100%;
-        opacity: 0.9;
-        transition: opacity 0.3s ease;
-        position: relative;
-    }
-    .quality-settings-btn:hover {
-        opacity: 1;
-    }
-    .quality-settings-btn .bpx-player-ctrl-btn-icon {
-        width: 22px;
-        height: 22px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .quality-settings-btn svg {
-        width: 100%;
-        height: 100%;
-        stroke: #ffffff;
-    }
-    .quality-settings-btn::after {
+    .auto-quality-injected::after {
         content: "自动画质面板";
         position: absolute;
         bottom: 100%;
@@ -782,7 +757,7 @@
         transition: opacity 0.2s ease;
         margin-bottom: 5px;
     }
-    .quality-settings-btn:hover::after {
+    .auto-quality-injected:hover::after {
         opacity: 1;
     }
     .github-link {
@@ -1861,11 +1836,11 @@
         const parent = qualityControl.parentElement;
         if (!parent) return;
 
-        const existing = parent.querySelector('.quality-settings-btn');
+        const existing = parent.querySelector('.auto-quality-injected');
         if (shouldInject) {
             if (!existing) {
                 const settingsButton = document.createElement('div');
-                settingsButton.className = 'bpx-player-ctrl-btn quality-settings-btn';
+                settingsButton.className = 'bpx-player-ctrl-btn bpx-player-ctrl-quality auto-quality-injected';
                 settingsButton.innerHTML = '<div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="15" rx="2" ry="2"></rect><polyline points="8 20 12 20 16 20"></polyline></svg></span></div>';
                 settingsButton.addEventListener('click', toggleSettingsPanel);
                 parent.insertBefore(settingsButton, qualityControl);
@@ -1915,7 +1890,7 @@
 
             function hideQualityButton() {
                 const qualityControl = DOM.get('qualityButton');
-                if (qualityControl && state.devModeEnabled && state.takeOverQualityControl) {
+                if (qualityControl && state.devModeEnabled && state.takeOverQualityControl && !qualityControl.classList.contains('auto-quality-injected')) {
                     qualityControl.classList.add('quality-button-hidden');
                 }
             }
