@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.1.6-Beta
+// @version      5.1.7-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -38,10 +38,10 @@
         useHighestQualityFallback: GM_getValue("useHighestQualityFallback", true),
         activeQualityTab: GM_getValue("activeQualityTab", "primary"),
         takeOverQualityControl: GM_getValue("takeOverQualityControl", false),
-        // 解锁相关设置（默认关闭）
+        // 解锁相关设置
         unlockUA: GM_getValue("unlockUA", false),
         unlockHDR: GM_getValue("unlockHDR", false),
-        unlockMarker: GM_getValue("unlockMarker", false),
+        unlockMarker: GM_getValue("unlockMarker", true),
         disableHDROption: GM_getValue("disableHDR", false),
         isVipUser: false,
         vipStatusChecked: false,
