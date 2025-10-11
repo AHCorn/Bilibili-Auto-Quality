@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.1.7-Beta
+// @version      5.1.8-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -1337,23 +1337,44 @@
             }
         }
         console.log("[画质设置] 实际目标画质: " + targetQuality.name);
+        const targetQualityNameClean = cleanQuality(targetQuality.name);
         targetQuality.element.click();
-        {
-            const { enabled, delayMs } = getDoubleCheckConfig(false);
-            if (enabled) {
-                await Utils.delay(delayMs);
-            } else {
-                // 无
-            }
+        
+        // 二次验证逻辑
+        const { enabled, delayMs } = getDoubleCheckConfig(false);
+        if (enabled) {
+            console.log(`[画质设置] 等待 ${delayMs} 毫秒后进行二次验证...`);
+            await Utils.delay(delayMs);
+            
             const currentQualityAfterSwitchEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
             const currentQualityAfterSwitch = currentQualityAfterSwitchEl ? currentQualityAfterSwitchEl.textContent : "";
             if (currentQualityAfterSwitch && cleanQuality(currentQualityAfterSwitch) !== cleanQuality(targetQuality.name)) {
                 console.log("[画质设置] 画质切换未成功，执行二次切换...");
-                targetQuality.element.click();
+                // 重新打开清晰度菜单并重新定位目标项，避免旧元素失效
+                const qualityButton = document.querySelector('.bpx-player-ctrl-btn.bpx-player-ctrl-quality');
+                if (qualityButton) {
+                    qualityButton.click();
+                    await Utils.delay(80);
+                }
+                const qualityMenu = document.querySelector('.bpx-player-ctrl-quality-menu');
+                if (qualityMenu) {
+                    const freshItems = Array.from(qualityMenu.querySelectorAll('.bpx-player-ctrl-quality-menu-item'));
+                    const freshTarget = freshItems.find(item => cleanQuality((item.textContent || '').trim()).includes(targetQualityNameClean));
+                    if (freshTarget) {
+                        freshTarget.click();
+                    } else {
+                        console.warn("[画质设置] 无法重新定位目标画质元素:", targetQuality.name);
+                    }
+                } else {
+                    console.warn("[画质设置] 画质菜单未打开，无法执行二次切换");
+                }
             } else {
                 console.log("[画质设置] 画质切换验证成功，当前画质: " + currentQualityAfterSwitch);
             }
+        } else {
+            console.log("[画质设置] 二次验证已关闭，跳过验证");
         }
+        
         await setAudioQuality();
     }
     function createLiveSettingsPanel() {
@@ -1420,9 +1441,12 @@
                 unsafeWindow.livePlayer.switchQuality(targetQuality.qn);
                 console.log("[直播画质] 已切换到目标画质:", targetQuality.desc);
                 updateLiveSettingsPanel();
-                {
-                    const { enabled, delayMs } = getDoubleCheckConfig(true);
-                    if (enabled) setTimeout(() => {
+                
+                // 二次验证逻辑
+                const { enabled, delayMs } = getDoubleCheckConfig(true);
+                if (enabled) {
+                    console.log(`[直播画质] 等待 ${delayMs} 毫秒后进行二次验证...`);
+                    setTimeout(() => {
                         const currentQualityAfterSwitch = unsafeWindow.livePlayer.getPlayerInfo().quality;
                         if (currentQualityAfterSwitch !== targetQuality.qn) {
                             console.log("[直播画质] 画质切换可能未成功，执行二次切换...");
@@ -1431,6 +1455,8 @@
                             console.log("[直播画质] 画质切换验证成功，当前画质:", targetQuality.desc);
                         }
                     }, delayMs);
+                } else {
+                    console.log("[直播画质] 二次验证已关闭，跳过验证");
                 }
             } else {
                 console.log("[直播画质] 已经是目标画质:", targetQuality.desc);
@@ -1768,6 +1794,25 @@
 
         panel.querySelector('#remove-quality-button').addEventListener('change', function (e) {
             setSetting("takeOverQualityControl", "takeOverQualityControl", e.target.checked);
+        });
+        // 绑定三个数字输入框的事件
+        panel.querySelector('#dev-double-check-delay').addEventListener('input', function (e) {
+            const value = parseInt(e.target.value, 10);
+            if (!isNaN(value)) {
+                setSetting("devDoubleCheckDelay", "devDoubleCheckDelay", value);
+            }
+        });
+        panel.querySelector('#dev-audio-delay').addEventListener('input', function (e) {
+            const value = parseInt(e.target.value, 10);
+            if (!isNaN(value)) {
+                setSetting("devModeAudioDelay", "devModeAudioDelay", value);
+            }
+        });
+        panel.querySelector('#dev-audio-retries').addEventListener('input', function (e) {
+            const value = parseInt(e.target.value, 10);
+            if (!isNaN(value)) {
+                setSetting("devModeAudioRetries", "devModeAudioRetries", value);
+            }
         });
         panel.querySelector('.refresh-button').addEventListener('click', function () {
             location.reload();
