@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.1.9-Beta
+// @version      5.2.0-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -55,8 +55,8 @@
         devModeNoLoginStatus: GM_getValue("devModeNoLoginStatus", false),
         preserveTouchPoints: GM_getValue("preserveTouchPoints", false),
         devModeAudioRetries: GM_getValue("devModeAudioRetries", 2),
-        devModeAudioDelay: GM_getValue("devModeAudioDelay", 4000),
-        devDoubleCheckDelay: GM_getValue("devDoubleCheckDelay", 5000),
+        devModeAudioDelay: GM_getValue("devModeAudioDelay", 5000),
+        devDoubleCheckDelay: GM_getValue("devDoubleCheckDelay", 10000),
         devAllowFreeVipQualities: GM_getValue("devAllowFreeVipQualities", false),
         injectQualityButton: GM_getValue("injectQualityButton", true),
         qualityDoubleCheck: GM_getValue("qualityDoubleCheck", true),
