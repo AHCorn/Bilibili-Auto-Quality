@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.1.8-Beta
+// @version      5.1.9-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -57,6 +57,7 @@
         devModeAudioRetries: GM_getValue("devModeAudioRetries", 2),
         devModeAudioDelay: GM_getValue("devModeAudioDelay", 4000),
         devDoubleCheckDelay: GM_getValue("devDoubleCheckDelay", 5000),
+        devAllowFreeVipQualities: GM_getValue("devAllowFreeVipQualities", false),
         injectQualityButton: GM_getValue("injectQualityButton", true),
         qualityDoubleCheck: GM_getValue("qualityDoubleCheck", true),
         liveQualityDoubleCheck: GM_getValue("liveQualityDoubleCheck", true),
@@ -197,7 +198,7 @@
         transition: all 0.2s ease;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 1px rgba(0,0,0,0.02);
     }
-    
+
     .vip-status-title {
         font-size: 16px;
         color: #3c4043;
@@ -1297,7 +1298,8 @@
         function cleanQuality(q) { return q ? q.replace(/大会员|限免中/g, '').trim() : ""; }
         if (state.userQualitySetting === "最高画质") {
             const hasFreeVip = availableQualities.some(q => q.isFreeNow);
-            if (state.isVipUser || hasFreeVip) {
+            const allowFreeVipForNonVip = state.devModeEnabled && state.devAllowFreeVipQualities;
+            if (state.isVipUser || (hasFreeVip && allowFreeVipForNonVip)) {
                 targetQuality = availableQualities[0];
             } else {
                 availableQualities.sort((a, b) => {
@@ -1309,9 +1311,12 @@
                     }
                     return getQualityIndex(a.name) - getQualityIndex(b.name);
                 });
-                targetQuality = availableQualities.find(q => cleanQuality(q.name).includes(state.userBackupQualitySetting));
+                const filteredForNonVip = state.isVipUser ? availableQualities : availableQualities.filter(q => !q.isVipOnly && !q.isFreeNow);
+                targetQuality = filteredForNonVip.find(q => cleanQuality(q.name).includes(state.userBackupQualitySetting));
                 if (!targetQuality && state.useHighestQualityFallback)
-                    targetQuality = availableQualities.find(q => !q.isVipOnly);
+                    targetQuality = (state.isVipUser || allowFreeVipForNonVip)
+                        ? availableQualities.find(q => !q.isVipOnly || q.isFreeNow)
+                        : availableQualities.find(q => !q.isVipOnly && !q.isFreeNow);
                 if (!targetQuality && !state.useHighestQualityFallback) {
                     console.log("[画质设置] 未找到备选画质，保持当前画质");
                     await setAudioQuality();
@@ -1339,13 +1344,13 @@
         console.log("[画质设置] 实际目标画质: " + targetQuality.name);
         const targetQualityNameClean = cleanQuality(targetQuality.name);
         targetQuality.element.click();
-        
+
         // 二次验证逻辑
         const { enabled, delayMs } = getDoubleCheckConfig(false);
         if (enabled) {
             console.log(`[画质设置] 等待 ${delayMs} 毫秒后进行二次验证...`);
             await Utils.delay(delayMs);
-            
+
             const currentQualityAfterSwitchEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
             const currentQualityAfterSwitch = currentQualityAfterSwitchEl ? currentQualityAfterSwitchEl.textContent : "";
             if (currentQualityAfterSwitch && cleanQuality(currentQualityAfterSwitch) !== cleanQuality(targetQuality.name)) {
@@ -1374,7 +1379,7 @@
         } else {
             console.log("[画质设置] 二次验证已关闭，跳过验证");
         }
-        
+
         await setAudioQuality();
     }
     function createLiveSettingsPanel() {
@@ -1441,7 +1446,7 @@
                 unsafeWindow.livePlayer.switchQuality(targetQuality.qn);
                 console.log("[直播画质] 已切换到目标画质:", targetQuality.desc);
                 updateLiveSettingsPanel();
-                
+
                 // 二次验证逻辑
                 const { enabled, delayMs } = getDoubleCheckConfig(true);
                 if (enabled) {
@@ -1682,6 +1687,16 @@
             </label>
           </div>
           <div class="toggle-switch">
+            <label for="dev-allow-freevip">
+              非会员允许限免画质
+              <div class="description">默认关闭，避免可能出现的会员推广</div>
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="dev-allow-freevip" ${state.devAllowFreeVipQualities ? 'checked' : ''} ${!state.devModeEnabled ? 'disabled' : ''}>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-switch">
             <label for="dev-no-login">
               未登录模式
               <div class="description">启用后不等待头像加载，默认最高画质1080P</div>
@@ -1770,19 +1785,23 @@
                 if (target.classList.contains('vip-status-tab')) {
                     const status = target.getAttribute('data-status');
                     setSetting("devModeVipStatus", "devModeVipStatus", status);
-                    
+
                     // 更新UI状态
                     vipStatusTabs.setAttribute('data-active', status);
                     vipStatusTabs.querySelectorAll('.vip-status-tab').forEach(tab => {
                         tab.classList.toggle('active', tab.getAttribute('data-status') === status);
                     });
-                    
+
                     console.log(`[开发者模式] 会员状态设置为: ${status}`);
                 }
             });
         }
         panel.querySelector('#dev-no-login').addEventListener('change', function (e) {
             setSetting("devModeNoLoginStatus", "devModeNoLoginStatus", e.target.checked);
+        });
+
+        panel.querySelector('#dev-allow-freevip').addEventListener('change', function (e) {
+            setSetting("devAllowFreeVipQualities", "devAllowFreeVipQualities", e.target.checked);
         });
 
         panel.querySelector('#preserve-touch-points').addEventListener('change', function(e) {
@@ -1859,7 +1878,7 @@
         togglePanel("bilibili-dev-settings", createDevSettingsPanel, function (panel) {
             const removeQualityButton = panel.querySelector('#remove-quality-button');
             if (removeQualityButton) removeQualityButton.checked = state.takeOverQualityControl;
-            
+
             // 更新会员状态UI
             const vipStatusTabs = panel.querySelector('.vip-status-tabs');
             if (vipStatusTabs) {
