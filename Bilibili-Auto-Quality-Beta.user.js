@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.2.0-Beta
+// @version      5.2.1-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -1276,9 +1276,9 @@
             };
         });
 
-        // 开发者设置：禁用 HDR 选项时，过滤掉 HDR 画质
+        // 开发者设置：禁用 HDR 选项时，过滤掉 HDR 和杜比视界画质
         if (state.devModeEnabled && state.disableHDROption) {
-            availableQualities = availableQualities.filter(q => q.name.indexOf("HDR") === -1);
+            availableQualities = availableQualities.filter(q => q.name.indexOf("HDR") === -1 && q.name.indexOf("杜比视界") === -1);
         }
 
         // 未登录模式下过滤掉高于1080P的画质
@@ -1719,8 +1719,8 @@
           </div>
           <div class="toggle-switch">
             <label for="disable-hdr">
-              禁用 HDR 选项
-              <div class="description">开启后选择 HDR 以外的最高画质</div>
+              禁用 HDR 和杜比视界
+              <div class="description">开启后选择 HDR 和杜比视界以外的最高画质</div>
             </label>
             <label class="switch">
               <input type="checkbox" id="disable-hdr" ${state.disableHDROption ? 'checked' : ''} ${!state.devModeEnabled ? 'disabled' : ''}>
