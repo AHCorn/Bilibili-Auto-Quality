@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.2.1-Beta
+// @version      5.2.2-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -1243,6 +1243,7 @@
     }
 
     async function selectVideoQuality() {
+        const taskId = taskQueue.currentTaskId;
         const currentQualityEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
         const currentQuality = currentQualityEl ? currentQualityEl.textContent : "";
         console.log("[画质设置] 当前画质:", currentQuality);
@@ -1349,33 +1350,35 @@
         const { enabled, delayMs } = getDoubleCheckConfig(false);
         if (enabled) {
             console.log(`[画质设置] 等待 ${delayMs} 毫秒后进行二次验证...`);
-            await Utils.delay(delayMs);
+            await taskQueue.scheduleTask(taskId, async () => {
+                if (taskQueue.isTaskCancelled(taskId)) return;
 
-            const currentQualityAfterSwitchEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
-            const currentQualityAfterSwitch = currentQualityAfterSwitchEl ? currentQualityAfterSwitchEl.textContent : "";
-            if (currentQualityAfterSwitch && cleanQuality(currentQualityAfterSwitch) !== cleanQuality(targetQuality.name)) {
-                console.log("[画质设置] 画质切换未成功，执行二次切换...");
-                // 重新打开清晰度菜单并重新定位目标项，避免旧元素失效
-                const qualityButton = document.querySelector('.bpx-player-ctrl-btn.bpx-player-ctrl-quality');
-                if (qualityButton) {
-                    qualityButton.click();
-                    await Utils.delay(80);
-                }
-                const qualityMenu = document.querySelector('.bpx-player-ctrl-quality-menu');
-                if (qualityMenu) {
-                    const freshItems = Array.from(qualityMenu.querySelectorAll('.bpx-player-ctrl-quality-menu-item'));
-                    const freshTarget = freshItems.find(item => cleanQuality((item.textContent || '').trim()).includes(targetQualityNameClean));
-                    if (freshTarget) {
-                        freshTarget.click();
+                const currentQualityAfterSwitchEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
+                const currentQualityAfterSwitch = currentQualityAfterSwitchEl ? currentQualityAfterSwitchEl.textContent : "";
+                if (currentQualityAfterSwitch && cleanQuality(currentQualityAfterSwitch) !== cleanQuality(targetQualityNameClean)) {
+                    console.log("[画质设置] 画质切换未成功，执行二次切换...");
+                    // 重新打开清晰度菜单并重新定位目标项，避免旧元素失效
+                    const qualityButton = document.querySelector('.bpx-player-ctrl-btn.bpx-player-ctrl-quality');
+                    if (qualityButton) {
+                        qualityButton.click();
+                        await Utils.delay(80);
+                    }
+                    const qualityMenu = document.querySelector('.bpx-player-ctrl-quality-menu');
+                    if (qualityMenu) {
+                        const freshItems = Array.from(qualityMenu.querySelectorAll('.bpx-player-ctrl-quality-menu-item'));
+                        const freshTarget = freshItems.find(item => cleanQuality((item.textContent || '').trim()).includes(targetQualityNameClean));
+                        if (freshTarget && !taskQueue.isTaskCancelled(taskId)) {
+                            freshTarget.click();
+                        } else if (!freshTarget) {
+                            console.warn("[画质设置] 无法重新定位目标画质元素:", targetQualityNameClean);
+                        }
                     } else {
-                        console.warn("[画质设置] 无法重新定位目标画质元素:", targetQuality.name);
+                        console.warn("[画质设置] 画质菜单未打开，无法执行二次切换");
                     }
                 } else {
-                    console.warn("[画质设置] 画质菜单未打开，无法执行二次切换");
+                    console.log("[画质设置] 画质切换验证成功，当前画质: " + currentQualityAfterSwitch);
                 }
-            } else {
-                console.log("[画质设置] 画质切换验证成功，当前画质: " + currentQualityAfterSwitch);
-            }
+            }, delayMs);
         } else {
             console.log("[画质设置] 二次验证已关闭，跳过验证");
         }
@@ -1410,8 +1413,14 @@
         updatePanel();
     }
     async function selectLiveQuality() {
-        await new Promise(resolve => {
+        const taskId = taskQueue.currentTaskId;
+        const readyResult = await new Promise(resolve => {
             const timer = setInterval(() => {
+                if (taskQueue.isTaskCancelled(taskId)) {
+                    clearInterval(timer);
+                    resolve("cancelled");
+                    return;
+                }
                 if (
                     unsafeWindow.livePlayer &&
                     unsafeWindow.livePlayer.getPlayerInfo &&
@@ -1419,10 +1428,14 @@
                     unsafeWindow.livePlayer.switchQuality
                 ) {
                     clearInterval(timer);
-                    resolve();
+                    resolve("ready");
                 }
             }, 1000);
         });
+        if (readyResult === "cancelled") {
+            console.log("[直播画质] 任务已取消，停止后续操作");
+            return;
+        }
         const qualityCandidates = unsafeWindow.livePlayer.getPlayerInfo().qualityCandidates;
         console.log("[直播画质] 可用画质选项:", qualityCandidates.map((q, i) => `${i + 1}. ${q.desc} (qn: ${q.qn})`));
         console.log("[直播画质] 选择的画质:", state.userLiveQualitySetting);
@@ -1451,7 +1464,8 @@
                 const { enabled, delayMs } = getDoubleCheckConfig(true);
                 if (enabled) {
                     console.log(`[直播画质] 等待 ${delayMs} 毫秒后进行二次验证...`);
-                    setTimeout(() => {
+                    taskQueue.scheduleTask(taskId, async () => {
+                        if (taskQueue.isTaskCancelled(taskId)) return;
                         const currentQualityAfterSwitch = unsafeWindow.livePlayer.getPlayerInfo().quality;
                         if (currentQualityAfterSwitch !== targetQuality.qn) {
                             console.log("[直播画质] 画质切换可能未成功，执行二次切换...");
