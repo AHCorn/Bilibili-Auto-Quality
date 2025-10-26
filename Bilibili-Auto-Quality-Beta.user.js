@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.2.3-Beta
+// @version      5.2.4-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -1151,11 +1151,22 @@
         }
 
         isTaskCancelled(taskId) {
-            // 只检查是否是当前最新任务
+            // 检查任务是否过期
             if (taskId !== this.currentTaskId) {
                 console.log(`[任务管理] 任务 #${taskId} 已过期，当前任务 #${this.currentTaskId}`);
                 return true;
             }
+            
+            // 统一检测登录状态：未登录且未开启未登录模式时取消任务
+            const loginButton = document.querySelector(".go-login-btn, .header-login-entry");
+            const headerAvatar = document.querySelector(".v-popover-wrap.header-avatar-wrap");
+            const noLoginMode = state.devModeEnabled && state.devModeNoLoginStatus;
+            
+            if (loginButton && !headerAvatar && !noLoginMode) {
+                console.log(`[任务管理] 任务 #${taskId} 取消：检测到未登录且未开启未登录模式`);
+                return true;
+            }
+            
             return false;
         }
 
@@ -2010,32 +2021,25 @@
                 window.playerControlsObserver.observe(playerControls, { childList: true, subtree: true });
             }
 
-            let avatarNoLoadTimerId = null;
-            let avatarNoLoadHandled = false;
             const vipCheckObserver = new MutationObserver((mutations, observer) => {
-                // 如果检测到登录按钮，终止头像等待
-                if (loginButtonHandled) {
+                // 未登录模式：跳过等待头像
+                if (state.devModeEnabled && state.devModeNoLoginStatus) {
                     observer.disconnect();
-                    if (state.devModeEnabled && state.devModeNoLoginStatus) {
-                        console.log("[未登录模式] 将在 5000ms 后执行初始化");
-                        setTimeout(() => {
-                            waitForPlayerWithBackoff(async () => {
-                                state.isLoading = false;
-                                await checkVipStatusAsync();
-                                await selectVideoQuality();
-                                updateQualityButtons(Utils.query("#bilibili-quality-selector"));
-                                applyDecodeSetting();
-                            }, 5, 1000, 0);
-                        }, 5000);
-                    }
+                    console.log("[未登录模式] 跳过等待头像元素，直接执行画质设置");
+                    waitForPlayerWithBackoff(async () => {
+                        state.isLoading = false;
+                        await checkVipStatusAsync();
+                        await selectVideoQuality();
+                        updateQualityButtons(Utils.query("#bilibili-quality-selector"));
+                        applyDecodeSetting();
+                    }, 5, 1000, 0);
                     return;
                 }
 
+                // 已登录：检测到头像
                 const headerAvatar = document.querySelector(".v-popover-wrap.header-avatar-wrap");
-                if (headerAvatar && !avatarHandled) {
-                    avatarHandled = true;
+                if (headerAvatar) {
                     observer.disconnect();
-                    loginCheckObserver.disconnect(); // 已登录，停止登录按钮检测
 
                     let timeoutId = null;
                     let hasExecuted = false;
@@ -2096,7 +2100,8 @@
         const headerAvatar = document.querySelector(".v-popover-wrap.header-avatar-wrap");
 
         // 未登录模式下不检查头像元素
-        const isReady = qualityItems && qualityItems.length > 0 && (state.devModeEnabled && state.devModeNoLoginStatus ? true : headerAvatar);
+        const isReady = qualityItems && qualityItems.length > 0 && 
+            (state.devModeEnabled && state.devModeNoLoginStatus ? true : headerAvatar);
 
         console.log(`[播放器状态]
         - 画质菜单: ${qualityMenu ? '已加载' : '未加载'}
