@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.2.4-Beta
+// @version      5.2.5-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -50,6 +50,7 @@
         userLiveQualitySetting: GM_getValue("liveQualitySetting", "最高画质"),
         userLiveDecodeSetting: GM_getValue("liveDecodeSetting", "默认"),
         userVideoDecodeSetting: GM_getValue("videoDecodeSetting", "默认"),
+        decodeSettingEnabled: GM_getValue("decodeSettingEnabled", false),
         devModeEnabled: GM_getValue("devModeEnabled", false),
         devModeVipStatus: GM_getValue("devModeVipStatus", "默认"),
         devModeNoLoginStatus: GM_getValue("devModeNoLoginStatus", false),
@@ -1524,11 +1525,26 @@
         panel.innerHTML = `
           <h2>解码设置</h2>
           ${renderGithubLink()}
+          <div class="toggle-switch">
+            <label for="decode-setting-enabled">启用解码设置</label>
+            <label class="switch">
+              <input type="checkbox" id="decode-setting-enabled" ${state.decodeSettingEnabled ? 'checked' : ''}>
+              <span class="slider"></span>
+            </label>
+          </div>
           <div class="quality-section-title">解码策略</div>
           <div class="quality-group">
             ${OPTIONS.map(o => `<button class="quality-button ${(state.isLivePage ? state.userLiveDecodeSetting : state.userVideoDecodeSetting) === o ? 'active' : ''}" data-decode="${o}">${o}</button>`).join('')}
           </div>
         `;
+        panel.querySelector("#decode-setting-enabled").addEventListener("change", function (e) {
+            state.decodeSettingEnabled = e.target.checked;
+            GM_setValue("decodeSettingEnabled", state.decodeSettingEnabled);
+            console.log(`[解码设置] 解码设置已${state.decodeSettingEnabled ? '启用' : '关闭'}`);
+            if (state.decodeSettingEnabled) {
+                applyDecodeSetting();
+            }
+        });
         panel.addEventListener("click", function (e) {
             const target = e.target;
             if (target.classList.contains("quality-button")) {
@@ -1543,13 +1559,19 @@
                 Utils.queryAll(".quality-button", panel).forEach(btn => {
                     btn.classList.toggle("active", btn === target);
                 });
-                applyDecodeSetting();
+                if (state.decodeSettingEnabled) {
+                    applyDecodeSetting();
+                }
             }
         });
         document.body.appendChild(panel);
     }
     function updateDecodeButtons(panel) {
         if (!panel) return;
+        const enableSwitch = panel.querySelector('#decode-setting-enabled');
+        if (enableSwitch) {
+            enableSwitch.checked = state.decodeSettingEnabled;
+        }
         Utils.queryAll('.quality-button', panel).forEach(btn => {
             const wanted = state.isLivePage ? state.userLiveDecodeSetting : state.userVideoDecodeSetting;
             btn.classList.toggle('active', btn.getAttribute('data-decode') === (wanted || '默认'));
@@ -1559,6 +1581,10 @@
         togglePanel("bilibili-decode-settings", createDecodeSettingsPanel, updateDecodeButtons);
     }
     function applyDecodeSetting(retryCount = 0) {
+        if (!state.decodeSettingEnabled) {
+            console.log('[解码设置] 解码设置未启用，跳过');
+            return;
+        }
         const maxRetries = 8;
         const wanted = state.isLivePage ? (state.userLiveDecodeSetting || '默认') : (state.userVideoDecodeSetting || '默认');
         // 直播页：点击 UL 列表项
