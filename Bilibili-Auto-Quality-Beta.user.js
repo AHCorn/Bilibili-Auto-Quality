@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.2.2-Beta
+// @version      5.2.3-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -882,6 +882,8 @@
         "360P",
         "默认"
     ];
+    const TRIAL_KEYWORDS = ["限免中", "试用中", "可试用", "试用"];
+    const CLEAN_KEYWORDS = ["大会员", ...TRIAL_KEYWORDS];
     function setSetting(stateKey, gmKey, value) {
         state[stateKey] = value;
         GM_setValue(gmKey, value);
@@ -1269,11 +1271,14 @@
             // 只在这儿查一次子元素，避免重复 querySelector
             const badge = item.querySelector(".bpx-player-ctrl-quality-badge-bigvip");
             const badgeText = badge ? badge.textContent : "";
+            const text = (item.textContent || "").trim();
+            const nameHasTrial = TRIAL_KEYWORDS.some(k => text.includes(k));
+            const badgeHasTrial = !!(badgeText && TRIAL_KEYWORDS.some(k => badgeText.includes(k)));
             return {
-                name: item.textContent.trim(),
+                name: text,
                 element: item,
                 isVipOnly: !!badge,
-                isFreeNow: !!(badge && badgeText.includes("限免中"))
+                isFreeNow: nameHasTrial || badgeHasTrial
             };
         });
 
@@ -1296,12 +1301,20 @@
 
         const qualityPreferences = QUALITY_ORDER;
         let targetQuality;
-        function cleanQuality(q) { return q ? q.replace(/大会员|限免中/g, '').trim() : ""; }
+        function cleanQuality(q) {
+            if (!q) return "";
+            let result = q;
+            CLEAN_KEYWORDS.forEach(k => { result = result.replace(new RegExp(k, 'g'), ''); });
+            return result.trim();
+        }
         if (state.userQualitySetting === "最高画质") {
             const hasFreeVip = availableQualities.some(q => q.isFreeNow);
             const allowFreeVipForNonVip = state.devModeEnabled && state.devAllowFreeVipQualities;
-            if (state.isVipUser || (hasFreeVip && allowFreeVipForNonVip)) {
+            if (state.isVipUser) {
                 targetQuality = availableQualities[0];
+            } else if (hasFreeVip && allowFreeVipForNonVip) {
+                // 非会员在允许试用时，选择首个“试用/限免”或首个非会员画质
+                targetQuality = availableQualities.find(q => q.isFreeNow) || availableQualities.find(q => !q.isVipOnly);
             } else {
                 availableQualities.sort((a, b) => {
                     function getQualityIndex(name) {
@@ -1333,8 +1346,14 @@
             if (!targetQuality) {
                 console.log("[画质设置] 未找到目标画质 " + state.userQualitySetting + ", 尝试使用备选画质");
                 targetQuality = availableQualities.find(q => cleanQuality(q.name).includes(state.userBackupQualitySetting));
-                if (!targetQuality && state.useHighestQualityFallback)
-                    targetQuality = state.isVipUser ? availableQualities[0] : availableQualities.find(q => !q.isVipOnly);
+                if (!targetQuality && state.useHighestQualityFallback) {
+                    const allowFreeVipForNonVip = state.devModeEnabled && state.devAllowFreeVipQualities;
+                    targetQuality = state.isVipUser
+                        ? availableQualities[0]
+                        : (allowFreeVipForNonVip
+                            ? (availableQualities.find(q => q.isFreeNow) || availableQualities.find(q => !q.isVipOnly))
+                            : availableQualities.find(q => !q.isVipOnly && !q.isFreeNow));
+                }
                 if (!targetQuality && !state.useHighestQualityFallback) {
                     console.log("[画质设置] 未找到备选画质，保持当前画质");
                     await setAudioQuality();
@@ -1991,24 +2010,32 @@
                 window.playerControlsObserver.observe(playerControls, { childList: true, subtree: true });
             }
 
+            let avatarNoLoadTimerId = null;
+            let avatarNoLoadHandled = false;
             const vipCheckObserver = new MutationObserver((mutations, observer) => {
-                // 未登录模式不等待头像元素
-                if (state.devModeEnabled && state.devModeNoLoginStatus) {
+                // 如果检测到登录按钮，终止头像等待
+                if (loginButtonHandled) {
                     observer.disconnect();
-                    console.log("[未登录模式] 跳过等待头像元素，直接执行画质设置");
-                    waitForPlayerWithBackoff(async () => {
-                        state.isLoading = false;
-                        await checkVipStatusAsync();
-                        await selectVideoQuality();
-                        updateQualityButtons(Utils.query("#bilibili-quality-selector"));
-                        applyDecodeSetting();
-                    }, 5, 1000, 0);
+                    if (state.devModeEnabled && state.devModeNoLoginStatus) {
+                        console.log("[未登录模式] 将在 5000ms 后执行初始化");
+                        setTimeout(() => {
+                            waitForPlayerWithBackoff(async () => {
+                                state.isLoading = false;
+                                await checkVipStatusAsync();
+                                await selectVideoQuality();
+                                updateQualityButtons(Utils.query("#bilibili-quality-selector"));
+                                applyDecodeSetting();
+                            }, 5, 1000, 0);
+                        }, 5000);
+                    }
                     return;
                 }
 
                 const headerAvatar = document.querySelector(".v-popover-wrap.header-avatar-wrap");
-                if (headerAvatar) {
+                if (headerAvatar && !avatarHandled) {
+                    avatarHandled = true;
                     observer.disconnect();
+                    loginCheckObserver.disconnect(); // 已登录，停止登录按钮检测
 
                     let timeoutId = null;
                     let hasExecuted = false;
