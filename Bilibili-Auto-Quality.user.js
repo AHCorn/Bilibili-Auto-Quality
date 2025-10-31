@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.2.2
+// @version      5.3
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -50,6 +50,7 @@
         userLiveQualitySetting: GM_getValue("liveQualitySetting", "最高画质"),
         userLiveDecodeSetting: GM_getValue("liveDecodeSetting", "默认"),
         userVideoDecodeSetting: GM_getValue("videoDecodeSetting", "默认"),
+        decodeSettingEnabled: GM_getValue("decodeSettingEnabled", false),
         devModeEnabled: GM_getValue("devModeEnabled", false),
         devModeVipStatus: GM_getValue("devModeVipStatus", "默认"),
         devModeNoLoginStatus: GM_getValue("devModeNoLoginStatus", false),
@@ -882,6 +883,8 @@
         "360P",
         "默认"
     ];
+    const TRIAL_KEYWORDS = ["限免中", "试用中", "可试用", "试用"];
+    const CLEAN_KEYWORDS = ["大会员", ...TRIAL_KEYWORDS];
     function setSetting(stateKey, gmKey, value) {
         state[stateKey] = value;
         GM_setValue(gmKey, value);
@@ -1149,11 +1152,22 @@
         }
 
         isTaskCancelled(taskId) {
-            // 只检查是否是当前最新任务
+            // 检查任务是否过期
             if (taskId !== this.currentTaskId) {
                 console.log(`[任务管理] 任务 #${taskId} 已过期，当前任务 #${this.currentTaskId}`);
                 return true;
             }
+            
+            // 统一检测登录状态：未登录且未开启未登录模式时取消任务
+            const loginButton = document.querySelector(".go-login-btn, .header-login-entry");
+            const headerAvatar = document.querySelector(".v-popover-wrap.header-avatar-wrap");
+            const noLoginMode = state.devModeEnabled && state.devModeNoLoginStatus;
+            
+            if (loginButton && !headerAvatar && !noLoginMode) {
+                console.log(`[任务管理] 任务 #${taskId} 取消：检测到未登录且未开启未登录模式`);
+                return true;
+            }
+            
             return false;
         }
 
@@ -1269,11 +1283,14 @@
             // 只在这儿查一次子元素，避免重复 querySelector
             const badge = item.querySelector(".bpx-player-ctrl-quality-badge-bigvip");
             const badgeText = badge ? badge.textContent : "";
+            const text = (item.textContent || "").trim();
+            const nameHasTrial = TRIAL_KEYWORDS.some(k => text.includes(k));
+            const badgeHasTrial = !!(badgeText && TRIAL_KEYWORDS.some(k => badgeText.includes(k)));
             return {
-                name: item.textContent.trim(),
+                name: text,
                 element: item,
                 isVipOnly: !!badge,
-                isFreeNow: !!(badge && badgeText.includes("限免中"))
+                isFreeNow: nameHasTrial || badgeHasTrial
             };
         });
 
@@ -1296,12 +1313,20 @@
 
         const qualityPreferences = QUALITY_ORDER;
         let targetQuality;
-        function cleanQuality(q) { return q ? q.replace(/大会员|限免中/g, '').trim() : ""; }
+        function cleanQuality(q) {
+            if (!q) return "";
+            let result = q;
+            CLEAN_KEYWORDS.forEach(k => { result = result.replace(new RegExp(k, 'g'), ''); });
+            return result.trim();
+        }
         if (state.userQualitySetting === "最高画质") {
             const hasFreeVip = availableQualities.some(q => q.isFreeNow);
             const allowFreeVipForNonVip = state.devModeEnabled && state.devAllowFreeVipQualities;
-            if (state.isVipUser || (hasFreeVip && allowFreeVipForNonVip)) {
+            if (state.isVipUser) {
                 targetQuality = availableQualities[0];
+            } else if (hasFreeVip && allowFreeVipForNonVip) {
+                // 非会员在允许试用时，选择首个“试用/限免”或首个非会员画质
+                targetQuality = availableQualities.find(q => q.isFreeNow) || availableQualities.find(q => !q.isVipOnly);
             } else {
                 availableQualities.sort((a, b) => {
                     function getQualityIndex(name) {
@@ -1333,8 +1358,14 @@
             if (!targetQuality) {
                 console.log("[画质设置] 未找到目标画质 " + state.userQualitySetting + ", 尝试使用备选画质");
                 targetQuality = availableQualities.find(q => cleanQuality(q.name).includes(state.userBackupQualitySetting));
-                if (!targetQuality && state.useHighestQualityFallback)
-                    targetQuality = state.isVipUser ? availableQualities[0] : availableQualities.find(q => !q.isVipOnly);
+                if (!targetQuality && state.useHighestQualityFallback) {
+                    const allowFreeVipForNonVip = state.devModeEnabled && state.devAllowFreeVipQualities;
+                    targetQuality = state.isVipUser
+                        ? availableQualities[0]
+                        : (allowFreeVipForNonVip
+                            ? (availableQualities.find(q => q.isFreeNow) || availableQualities.find(q => !q.isVipOnly))
+                            : availableQualities.find(q => !q.isVipOnly && !q.isFreeNow));
+                }
                 if (!targetQuality && !state.useHighestQualityFallback) {
                     console.log("[画质设置] 未找到备选画质，保持当前画质");
                     await setAudioQuality();
@@ -1343,6 +1374,21 @@
             }
         }
         console.log("[画质设置] 实际目标画质: " + targetQuality.name);
+        
+        // 避免将更高画质切换到更低画质
+        if (state.userQualitySetting === "最高画质") {
+            const currentQualityItem = availableQualities.find(q => cleanQuality(q.name) === cleanQuality(currentQuality));
+            const currentQualityIndex = currentQualityItem ? availableQualities.indexOf(currentQualityItem) : -1;
+            const targetQualityIndex = availableQualities.indexOf(targetQuality);
+            
+            // 获取到的可用画质数组按从高到低排序，索引越大画质越低
+            if (currentQualityIndex !== -1 && targetQualityIndex > currentQualityIndex) {
+                console.log(`[画质设置] 防护触发：当前画质 ${currentQuality} (数组索引${currentQualityIndex}) 高于目标 ${targetQuality.name} (数组索引${targetQualityIndex})，放弃切换`);
+                await setAudioQuality();
+                return;
+            }
+        }
+        
         const targetQualityNameClean = cleanQuality(targetQuality.name);
         targetQuality.element.click();
 
@@ -1494,11 +1540,26 @@
         panel.innerHTML = `
           <h2>解码设置</h2>
           ${renderGithubLink()}
+          <div class="toggle-switch">
+            <label for="decode-setting-enabled">启用解码设置</label>
+            <label class="switch">
+              <input type="checkbox" id="decode-setting-enabled" ${state.decodeSettingEnabled ? 'checked' : ''}>
+              <span class="slider"></span>
+            </label>
+          </div>
           <div class="quality-section-title">解码策略</div>
           <div class="quality-group">
             ${OPTIONS.map(o => `<button class="quality-button ${(state.isLivePage ? state.userLiveDecodeSetting : state.userVideoDecodeSetting) === o ? 'active' : ''}" data-decode="${o}">${o}</button>`).join('')}
           </div>
         `;
+        panel.querySelector("#decode-setting-enabled").addEventListener("change", function (e) {
+            state.decodeSettingEnabled = e.target.checked;
+            GM_setValue("decodeSettingEnabled", state.decodeSettingEnabled);
+            console.log(`[解码设置] 解码设置已${state.decodeSettingEnabled ? '启用' : '关闭'}`);
+            if (state.decodeSettingEnabled) {
+                applyDecodeSetting();
+            }
+        });
         panel.addEventListener("click", function (e) {
             const target = e.target;
             if (target.classList.contains("quality-button")) {
@@ -1513,13 +1574,19 @@
                 Utils.queryAll(".quality-button", panel).forEach(btn => {
                     btn.classList.toggle("active", btn === target);
                 });
-                applyDecodeSetting();
+                if (state.decodeSettingEnabled) {
+                    applyDecodeSetting();
+                }
             }
         });
         document.body.appendChild(panel);
     }
     function updateDecodeButtons(panel) {
         if (!panel) return;
+        const enableSwitch = panel.querySelector('#decode-setting-enabled');
+        if (enableSwitch) {
+            enableSwitch.checked = state.decodeSettingEnabled;
+        }
         Utils.queryAll('.quality-button', panel).forEach(btn => {
             const wanted = state.isLivePage ? state.userLiveDecodeSetting : state.userVideoDecodeSetting;
             btn.classList.toggle('active', btn.getAttribute('data-decode') === (wanted || '默认'));
@@ -1529,6 +1596,10 @@
         togglePanel("bilibili-decode-settings", createDecodeSettingsPanel, updateDecodeButtons);
     }
     function applyDecodeSetting(retryCount = 0) {
+        if (!state.decodeSettingEnabled) {
+            console.log('[解码设置] 解码设置未启用，跳过');
+            return;
+        }
         const maxRetries = 8;
         const wanted = state.isLivePage ? (state.userLiveDecodeSetting || '默认') : (state.userVideoDecodeSetting || '默认');
         // 直播页：点击 UL 列表项
@@ -1992,7 +2063,7 @@
             }
 
             const vipCheckObserver = new MutationObserver((mutations, observer) => {
-                // 未登录模式不等待头像元素
+                // 未登录模式：跳过等待头像
                 if (state.devModeEnabled && state.devModeNoLoginStatus) {
                     observer.disconnect();
                     console.log("[未登录模式] 跳过等待头像元素，直接执行画质设置");
@@ -2006,6 +2077,7 @@
                     return;
                 }
 
+                // 已登录：检测到头像
                 const headerAvatar = document.querySelector(".v-popover-wrap.header-avatar-wrap");
                 if (headerAvatar) {
                     observer.disconnect();
@@ -2069,7 +2141,8 @@
         const headerAvatar = document.querySelector(".v-popover-wrap.header-avatar-wrap");
 
         // 未登录模式下不检查头像元素
-        const isReady = qualityItems && qualityItems.length > 0 && (state.devModeEnabled && state.devModeNoLoginStatus ? true : headerAvatar);
+        const isReady = qualityItems && qualityItems.length > 0 && 
+            (state.devModeEnabled && state.devModeNoLoginStatus ? true : headerAvatar);
 
         console.log(`[播放器状态]
         - 画质菜单: ${qualityMenu ? '已加载' : '未加载'}
