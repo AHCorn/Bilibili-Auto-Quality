@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.3.1-Beta
+// @version      5.3.2-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -63,6 +63,7 @@
         injectQualityButton: GM_getValue("injectQualityButton", true),
         qualityDoubleCheck: GM_getValue("qualityDoubleCheck", true),
         liveQualityDoubleCheck: GM_getValue("liveQualityDoubleCheck", true),
+        qualitySetSuccessfully: false,
         sessionCache: {
             vipStatus: null,
             vipChecked: false
@@ -1352,6 +1353,7 @@
             }
         } else if (state.userQualitySetting === "默认") {
             console.log("[画质设置] 使用默认画质");
+            state.qualitySetSuccessfully = true;
             await setAudioQuality();
             return;
         } else {
@@ -1385,6 +1387,7 @@
             // 获取到的可用画质数组按从高到低排序，索引越大画质越低
             if (currentQualityIndex !== -1 && targetQualityIndex > currentQualityIndex) {
                 console.log(`[画质设置] 防护触发：当前画质 ${currentQuality} (数组索引${currentQualityIndex}) 高于目标 ${targetQuality.name} (数组索引${targetQualityIndex})，放弃切换`);
+                state.qualitySetSuccessfully = true;
                 await setAudioQuality();
                 return;
             }
@@ -1392,6 +1395,7 @@
         
         const targetQualityNameClean = cleanQuality(targetQuality.name);
         targetQuality.element.click();
+        state.qualitySetSuccessfully = true;
 
         // 二次验证逻辑
         const { enabled, delayMs } = getDoubleCheckConfig(false);
@@ -1506,6 +1510,7 @@
             if (currentQualityNumber !== targetQuality.qn || shouldForceHighestOnce) {
                 unsafeWindow.livePlayer.switchQuality(targetQuality.qn);
                 if (shouldForceHighestOnce) state.liveEntryForceHighest = false;
+                state.qualitySetSuccessfully = true;
                 console.log("[直播画质] 已切换到目标画质:", targetQuality.desc);
                 updateLiveSettingsPanel();
 
@@ -1527,6 +1532,7 @@
                     console.log("[直播画质] 二次验证已关闭，跳过验证");
                 }
             } else {
+                state.qualitySetSuccessfully = true;
                 console.log("[直播画质] 已经是目标画质:", targetQuality.desc);
             }
         }
@@ -2139,6 +2145,40 @@
     }
     window.addEventListener("DOMContentLoaded", initPlayerScripts, { once: true });
 
+    // 后台标签页切回前台时的画质补救
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "visible" || state.qualitySetSuccessfully) return;
+
+        console.log("[可见性恢复] 标签页变为可见，画质尚未成功设置，尝试重新触发");
+
+        // 给进行中的初始化流程一个完成窗口，避免与 MutationObserver 链路竞争
+        setTimeout(async () => {
+            if (state.qualitySetSuccessfully) return;
+
+            checkIfLivePage();
+
+            if (state.isLivePage) {
+                if (unsafeWindow.livePlayer && unsafeWindow.livePlayer.getPlayerInfo && unsafeWindow.livePlayer.switchQuality) {
+                    state.liveEntryForceHighest = state.userLiveQualitySetting === "最高画质";
+                    await selectLiveQuality();
+                }
+                return;
+            }
+
+            const taskId = taskQueue.generateTaskId();
+            state.isLoading = true;
+
+            await waitForPlayerWithBackoff(async () => {
+                if (taskQueue.isTaskCancelled(taskId) || state.qualitySetSuccessfully) return;
+                state.isLoading = false;
+                await checkVipStatusAsync();
+                await selectVideoQuality();
+                updateQualityButtons(Utils.query("#bilibili-quality-selector"));
+                applyDecodeSetting();
+            }, 5, 1000, 0);
+        }, 800);
+    });
+
     function isPlayerReady() {
         const qualityMenu = document.querySelector('.bpx-player-ctrl-quality-menu');
         const qualityItems = qualityMenu ? qualityMenu.querySelectorAll('.bpx-player-ctrl-quality-menu-item') : null;
@@ -2296,6 +2336,7 @@
 
         taskQueue.clearPreviousTasks();
         state.isLoading = true;
+        state.qualitySetSuccessfully = false;
 
         const panel = document.getElementById("bilibili-quality-selector");
         if (panel) updateQualityButtons(panel);
