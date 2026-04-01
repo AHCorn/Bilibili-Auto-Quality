@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.3.2-Beta
+// @version      5.3.3-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -2094,14 +2094,13 @@
 
                     let timeoutId = null;
                     let hasExecuted = false;
+                    let vipIconObserver = null;
 
                     const executeQualitySettings = () => {
                         if (hasExecuted) return;
                         hasExecuted = true;
-                        if (timeoutId) {
-                            clearTimeout(timeoutId);
-                            timeoutId = null;
-                        }
+                        if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+                        if (vipIconObserver) { vipIconObserver.disconnect(); vipIconObserver = null; }
                         waitForPlayerWithBackoff(async () => {
                             state.isLoading = false;
                             await checkVipStatusAsync();
@@ -2111,11 +2110,23 @@
                         }, 5, 1000, 0);
                     };
 
+                    fetch("https://api.bilibili.com/x/vip/web/user/info", { credentials: "include" })
+                        .then(r => r.json())
+                        .then(d => {
+                            if (d.code === 0 && d.data) {
+                                state.sessionCache.vipStatus = d.data.vip_type > 0 && d.data.vip_status === 1;
+                                state.sessionCache.vipChecked = true;
+                            }
+                            executeQualitySettings();
+                        })
+                        .catch(() => {});
+
                     // 等待会员图标加载完成
-                    const vipIconObserver = new MutationObserver((mutations, observer) => {
-                        const vipElement = document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip");
-                        if (vipElement || mutations.some(m => m.target.classList.contains('bili-avatar-icon-big-vip'))) {
-                            observer.disconnect();
+                    vipIconObserver = new MutationObserver((mutations, obs) => {
+                        const vipElement = document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip") ||
+                            document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-small-vip");
+                        if (vipElement || mutations.some(m => m.target.classList && (m.target.classList.contains('bili-avatar-icon-big-vip') || m.target.classList.contains('bili-avatar-icon-small-vip')))) {
+                            obs.disconnect();
                             console.log("[会员状态] 会员图标已加载，开始执行画质设置");
                             executeQualitySettings();
                         }
@@ -2130,7 +2141,7 @@
 
                     // 优先保证会员切换速度，因为非会员用户 1080P 的切换频率并不高，并且 3.5 秒其实与之前版本体验一致。
                     timeoutId = setTimeout(() => {
-                        vipIconObserver.disconnect();
+                        if (vipIconObserver) { vipIconObserver.disconnect(); vipIconObserver = null; }
                         console.log("[会员状态] 会员图标检测超时，继续执行画质设置");
                         executeQualitySettings();
                     }, 3500);
@@ -2231,7 +2242,8 @@
         if (state.sessionCache.vipChecked) {
             state.isVipUser = state.sessionCache.vipStatus;
             state.vipStatusChecked = true;
-            console.log("[会员状态] 使用缓存状态:", state.isVipUser ? "是" : "否");
+            console.log("[会员状态] 用户会员状态:", state.isVipUser ? "是" : "否");
+            console.log("[会员状态] 判定依据: API 接口");
             return;
         }
 
@@ -2253,53 +2265,39 @@
                 state.isVipUser = false;
             } else {
                 // 默认状态：不干预，保持原有检测逻辑
-                const vipElement = document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip");
-                const currentQualityEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
-                const hasVipIcon = vipElement !== null;
-                const isVipByQuality = !!(currentQualityEl && currentQualityEl.textContent && currentQualityEl.textContent.includes("大会员"));
-                state.isVipUser = hasVipIcon || isVipByQuality;
+                state.isVipUser = !!detectVipByDOM();
             }
             state.vipStatusChecked = true;
+            // 缓存结果
             state.sessionCache.vipStatus = state.isVipUser;
             state.sessionCache.vipChecked = true;
             console.log("[开发者模式] 用户会员状态:", state.isVipUser ? "是" : "否");
             return;
         }
 
-        // Directly query elements as the higher-level observer has already waited for them
-        const vipElement = document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip");
-        const currentQualityEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
-
-        const hasVipIcon = vipElement !== null;
-        const isVipByQuality = !!(currentQualityEl && currentQualityEl.textContent && currentQualityEl.textContent.includes("大会员"));
-        const avatarPopover = document.querySelector(".v-popover-content.avatar-popover");
-        const vipTitleEl = avatarPopover ? avatarPopover.querySelector(".vip-entry-desc .vip-entry-desc-title") : null;
-        const isVipByVipEntryTitle = !!(vipTitleEl && ((vipTitleEl.textContent || "").trim().includes("我的大会员")));
-
-        // 兜底：昵称颜色判定
-        let isVipByNicknameColor = false;
-        if (!hasVipIcon && !isVipByQuality && !isVipByVipEntryTitle && avatarPopover) {
-            const nicknameEl = avatarPopover.querySelector(".nickname-item.light");
-            if (nicknameEl) {
-                const colorValue = (nicknameEl.style && nicknameEl.style.color ? nicknameEl.style.color : "").trim();
-                // 只要不是默认的 var(--text1) 即视为会员
-                if (colorValue && !/^var\(--text1\)$/i.test(colorValue)) {
-                    isVipByNicknameColor = true;
-                }
-            }
-        }
-
-        state.isVipUser = hasVipIcon || isVipByQuality || isVipByVipEntryTitle || isVipByNicknameColor;
+        const reason = detectVipByDOM();
+        state.isVipUser = !!reason;
         state.vipStatusChecked = true;
         // 缓存结果
         state.sessionCache.vipStatus = state.isVipUser;
         state.sessionCache.vipChecked = true;
-
         console.log("[会员状态] 用户会员状态:", state.isVipUser ? "是" : "否");
-        if (state.isVipUser) {
-            const reason = hasVipIcon ? "发现会员图标" : (isVipByQuality ? "当前使用会员画质" : (isVipByVipEntryTitle ? "会员入口显示为大会员" : "昵称颜色非默认"));
+        if (reason) {
             console.log("[会员状态] 判定依据:", reason);
         }
+    }
+
+    // API 未命中时的 DOM 回退检测：查询会员图标和画质 badge
+    function detectVipByDOM() {
+        if (document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip") ||
+            document.querySelector(".bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-small-vip")) {
+            return "发现会员图标";
+        }
+        const activeItem = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active");
+        if (activeItem && activeItem.querySelector(".bpx-player-ctrl-quality-badge-bigvip")) {
+            return "当前使用会员画质";
+        }
+        return null;
     }
     function canonicalUrl(rawUrl) {
         try {
