@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.3.3-Beta
+// @version      5.5-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -63,6 +63,12 @@
         injectQualityButton: GM_getValue("injectQualityButton", true),
         qualityDoubleCheck: GM_getValue("qualityDoubleCheck", true),
         liveQualityDoubleCheck: GM_getValue("liveQualityDoubleCheck", true),
+        liveQualityPollingEnabled: GM_getValue("liveQualityPollingEnabled", false),
+        livePollingInterval: GM_getValue("livePollingInterval", 60),
+        livePollingTimerId: null,
+        liveKeepAliveEnabled: GM_getValue("liveKeepAliveEnabled", false),
+        liveKeepAliveInterval: GM_getValue("liveKeepAliveInterval", 60),
+        liveKeepAliveTimerId: null,
         qualitySetSuccessfully: false,
         sessionCache: {
             vipStatus: null,
@@ -829,6 +835,87 @@
         border-color: #00a1d6;
         box-shadow: 0 6px 12px rgba(0, 161, 214, 0.3);
     }
+    #bilibili-live-quality-selector .toggle-switch label {
+        display: flex;
+        flex-direction: column;
+        font-size: 16px;
+        color: #3c4043;
+        font-weight: 600;
+    }
+    #bilibili-live-quality-selector .toggle-switch .description,
+    #bilibili-live-quality-selector .input-group .description {
+        font-size: 13px;
+        color: #666;
+        margin-top: 4px;
+        font-weight: normal;
+    }
+    #bilibili-live-quality-selector .input-group {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 15px;
+        margin-bottom: 16px;
+        border: 1px solid #e5e7eb;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 1px rgba(0,0,0,0.02);
+    }
+    #bilibili-live-quality-selector .input-group:hover {
+        background: #f9fafb;
+        border-color: #e1e7ef;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.035);
+    }
+    #bilibili-live-quality-selector .input-group.disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    #bilibili-live-quality-selector .input-group label {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        font-size: 15px;
+        color: #3c4043;
+        font-weight: 600;
+    }
+    #bilibili-live-quality-selector .input-group input[type="number"] {
+        width: 80px;
+        padding: 8px;
+        border: 2px solid #dadce0;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #3c4043;
+        transition: all 0.3s ease;
+        background: #ffffff;
+        -moz-appearance: textfield;
+    }
+    #bilibili-live-quality-selector .input-group .unit {
+        color: #666;
+        font-size: 14px;
+        font-weight: normal;
+        margin-left: 4px;
+    }
+    .polling-status {
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        text-align: center;
+        font-weight: 600;
+        font-size: 13px;
+        transition: all 0.3s ease;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 1px rgba(0,0,0,0.02);
+    }
+    .polling-status.active {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+        border: 1px solid #c8e6c9;
+    }
+    .polling-status.inactive {
+        background-color: #f5f5f5;
+        color: #999;
+        border: 1px solid #e5e7eb;
+    }
     #bilibili-decode-settings .quality-group {
         grid-template-columns: repeat(2, 1fr);
         gap: 16px;
@@ -1440,14 +1527,59 @@
         const panel = document.createElement("div");
         panel.id = "bilibili-live-quality-selector";
         function updatePanel() {
-            const qualityCandidates = unsafeWindow.livePlayer.getPlayerInfo().qualityCandidates;
             const LIVE_QUALITIES = ["最高画质", "1080P 原画", "1080P 蓝光", "720P 超清"];
+            const pollingActive = state.liveQualityPollingEnabled && state.livePollingTimerId !== null;
+            const keepAliveActive = state.liveKeepAliveEnabled && state.liveKeepAliveTimerId !== null;
             panel.innerHTML = `
             <h2>直播设置</h2>
             ${renderGithubLink()}
             <div class="quality-section-title">画质选择</div>
             <div class="live-quality-group">
               ${LIVE_QUALITIES.map(quality => `<button class="live-quality-button ${quality === state.userLiveQualitySetting ? 'active' : ''}" data-quality="${quality}">${quality}</button>`).join('')}
+            </div>
+            <div class="quality-section-title">画质锁定</div>
+            <div class="polling-status ${pollingActive ? 'active' : 'inactive'}" id="live-polling-status">
+              ${pollingActive ? '轮询运行中，每 ' + state.livePollingInterval + ' 秒检查一次' : '轮询未启用'}
+            </div>
+            <div class="toggle-switch">
+              <label for="live-quality-polling">
+                画质轮询锁定
+                <div class="description">定时检查画质并自动切换回目标画质，后台标签页同样有效</div>
+              </label>
+              <label class="switch">
+                <input type="checkbox" id="live-quality-polling" ${state.liveQualityPollingEnabled ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="input-group ${!state.liveQualityPollingEnabled ? 'disabled' : ''}" id="live-polling-interval-group">
+              <label for="live-polling-interval">
+                轮询间隔
+                <div class="description">检查并切换画质的间隔时间</div>
+              </label>
+              <input type="number" id="live-polling-interval" value="${state.livePollingInterval}" min="5" max="3600" step="1" ${!state.liveQualityPollingEnabled ? 'disabled' : ''}>
+              <span class="unit">秒</span>
+            </div>
+            <div class="quality-section-title">页面保活 <span style="font-size: 12px; color: #f25d8e; font-weight: normal;">Beta</span></div>
+            <div class="polling-status ${keepAliveActive ? 'active' : 'inactive'}" id="live-keepalive-status">
+              ${keepAliveActive ? '保活运行中，每 ' + state.liveKeepAliveInterval + ' 分钟模拟一次' : '保活未启用'}
+            </div>
+            <div class="toggle-switch">
+              <label for="live-keep-alive">
+                模拟用户活跃
+                <div class="description">定时模拟鼠标移动，防止页面因长时间无操作被暂停</div>
+              </label>
+              <label class="switch">
+                <input type="checkbox" id="live-keep-alive" ${state.liveKeepAliveEnabled ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="input-group ${!state.liveKeepAliveEnabled ? 'disabled' : ''}" id="live-keepalive-interval-group">
+              <label for="live-keepalive-interval">
+                保活间隔
+                <div class="description">模拟鼠标移动的间隔时间</div>
+              </label>
+              <input type="number" id="live-keepalive-interval" value="${state.liveKeepAliveInterval}" min="1" max="1440" step="1" ${!state.liveKeepAliveEnabled ? 'disabled' : ''}>
+              <span class="unit">分钟</span>
             </div>
           `;
             panel.querySelectorAll(".live-quality-button").forEach(button => {
@@ -1456,12 +1588,78 @@
                     GM_setValue("liveQualitySetting", state.userLiveQualitySetting);
                     updatePanel();
                     selectLiveQuality();
+                    restartLivePollingIfNeeded();
                 });
             });
+            const pollingSwitch = panel.querySelector("#live-quality-polling");
+            if (pollingSwitch) {
+                pollingSwitch.addEventListener("change", function (e) {
+                    state.liveQualityPollingEnabled = e.target.checked;
+                    GM_setValue("liveQualityPollingEnabled", state.liveQualityPollingEnabled);
+                    const intervalGroup = panel.querySelector("#live-polling-interval-group");
+                    const intervalInputEl = panel.querySelector("#live-polling-interval");
+                    if (intervalGroup) intervalGroup.classList.toggle("disabled", !state.liveQualityPollingEnabled);
+                    if (intervalInputEl) intervalInputEl.disabled = !state.liveQualityPollingEnabled;
+                    if (state.liveQualityPollingEnabled) {
+                        startLivePolling();
+                    } else {
+                        stopLivePolling();
+                    }
+                });
+            }
+            const intervalInput = panel.querySelector("#live-polling-interval");
+            if (intervalInput) {
+                intervalInput.addEventListener("change", function (e) {
+                    let value = parseInt(e.target.value, 10);
+                    if (isNaN(value) || value < 5) value = 5;
+                    if (value > 3600) value = 3600;
+                    e.target.value = value;
+                    state.livePollingInterval = value;
+                    GM_setValue("livePollingInterval", value);
+                    restartLivePollingIfNeeded();
+                    updatePollingStatusIndicator();
+                });
+            }
+            const keepAliveSwitch = panel.querySelector("#live-keep-alive");
+            if (keepAliveSwitch) {
+                keepAliveSwitch.addEventListener("change", function (e) {
+                    state.liveKeepAliveEnabled = e.target.checked;
+                    GM_setValue("liveKeepAliveEnabled", state.liveKeepAliveEnabled);
+                    const kaGroup = panel.querySelector("#live-keepalive-interval-group");
+                    const kaInput = panel.querySelector("#live-keepalive-interval");
+                    if (kaGroup) kaGroup.classList.toggle("disabled", !state.liveKeepAliveEnabled);
+                    if (kaInput) kaInput.disabled = !state.liveKeepAliveEnabled;
+                    if (state.liveKeepAliveEnabled) {
+                        startLiveKeepAlive();
+                    } else {
+                        stopLiveKeepAlive();
+                    }
+                });
+            }
+            const keepAliveIntervalInput = panel.querySelector("#live-keepalive-interval");
+            if (keepAliveIntervalInput) {
+                keepAliveIntervalInput.addEventListener("change", function (e) {
+                    let value = parseInt(e.target.value, 10);
+                    if (isNaN(value) || value < 1) value = 1;
+                    if (value > 1440) value = 1440;
+                    e.target.value = value;
+                    state.liveKeepAliveInterval = value;
+                    GM_setValue("liveKeepAliveInterval", value);
+                    if (state.liveKeepAliveEnabled) startLiveKeepAlive();
+                    updateKeepAliveStatusIndicator();
+                });
+            }
         }
         document.body.appendChild(panel);
         panel.updatePanel = updatePanel;
         updatePanel();
+    }
+    function resolveLiveTargetQuality(qualityCandidates) {
+        if (!qualityCandidates || qualityCandidates.length === 0) return null;
+        if (state.userLiveQualitySetting === "最高画质") {
+            return qualityCandidates[0];
+        }
+        return qualityCandidates.find(q => q.desc.includes(state.userLiveQualitySetting)) || null;
     }
     async function selectLiveQuality() {
         const taskId = taskQueue.currentTaskId;
@@ -1491,12 +1689,7 @@
         console.log("[直播画质] 可用画质选项:", qualityCandidates.map((q, i) => `${i + 1}. ${q.desc} (qn: ${q.qn})`));
         console.log("[直播画质] 选择的画质:", state.userLiveQualitySetting);
 
-        let targetQuality;
-        if (state.userLiveQualitySetting === "最高画质") {
-            targetQuality = qualityCandidates[0];
-        } else {
-            targetQuality = qualityCandidates.find(q => q.desc.includes(state.userLiveQualitySetting));
-        }
+        const targetQuality = resolveLiveTargetQuality(qualityCandidates);
 
         if (!targetQuality) {
             console.log("[直播画质] 画质切换失败 (列表加载失败)，跳过切换。");
@@ -1514,22 +1707,26 @@
                 console.log("[直播画质] 已切换到目标画质:", targetQuality.desc);
                 updateLiveSettingsPanel();
 
-                // 二次验证逻辑
-                const { enabled, delayMs } = getDoubleCheckConfig(true);
-                if (enabled) {
-                    console.log(`[直播画质] 等待 ${delayMs} 毫秒后进行二次验证...`);
-                    taskQueue.scheduleTask(taskId, async () => {
-                        if (taskQueue.isTaskCancelled(taskId)) return;
-                        const currentQualityAfterSwitch = unsafeWindow.livePlayer.getPlayerInfo().quality;
-                        if (currentQualityAfterSwitch !== targetQuality.qn) {
-                            console.log("[直播画质] 画质切换可能未成功，执行二次切换...");
-                            unsafeWindow.livePlayer.switchQuality(targetQuality.qn);
-                        } else {
-                            console.log("[直播画质] 画质切换验证成功，当前画质:", targetQuality.desc);
-                        }
-                    }, delayMs);
+                // 轮询锁定运行时由轮询接管验证，跳过二次验证
+                if (state.liveQualityPollingEnabled && state.livePollingTimerId !== null) {
+                    console.log("[直播画质] 轮询锁定运行中，跳过二次验证");
                 } else {
-                    console.log("[直播画质] 二次验证已关闭，跳过验证");
+                    const { enabled, delayMs } = getDoubleCheckConfig(true);
+                    if (enabled) {
+                        console.log(`[直播画质] 等待 ${delayMs} 毫秒后进行二次验证...`);
+                        taskQueue.scheduleTask(taskId, async () => {
+                            if (taskQueue.isTaskCancelled(taskId)) return;
+                            const currentQualityAfterSwitch = unsafeWindow.livePlayer.getPlayerInfo().quality;
+                            if (currentQualityAfterSwitch !== targetQuality.qn) {
+                                console.log("[直播画质] 画质切换可能未成功，执行二次切换...");
+                                unsafeWindow.livePlayer.switchQuality(targetQuality.qn);
+                            } else {
+                                console.log("[直播画质] 画质切换验证成功，当前画质:", targetQuality.desc);
+                            }
+                        }, delayMs);
+                    } else {
+                        console.log("[直播画质] 二次验证已关闭，跳过验证");
+                    }
                 }
             } else {
                 state.qualitySetSuccessfully = true;
@@ -1541,6 +1738,93 @@
     function updateLiveSettingsPanel() {
         const panel = document.getElementById("bilibili-live-quality-selector");
         if (panel && typeof panel.updatePanel === "function") panel.updatePanel();
+    }
+    function updatePollingStatusIndicator() {
+        const statusEl = document.getElementById("live-polling-status");
+        if (!statusEl) return;
+        const pollingActive = state.liveQualityPollingEnabled && state.livePollingTimerId !== null;
+        statusEl.className = 'polling-status ' + (pollingActive ? 'active' : 'inactive');
+        statusEl.textContent = pollingActive
+            ? '轮询运行中，每 ' + state.livePollingInterval + ' 秒检查一次'
+            : '轮询未启用';
+    }
+    function startLivePolling() {
+        stopLivePolling();
+        if (!state.liveQualityPollingEnabled) return;
+        const intervalMs = state.livePollingInterval * 1000;
+        console.log(`[直播轮询] 启动画质轮询锁定，间隔 ${state.livePollingInterval} 秒`);
+        state.livePollingTimerId = setInterval(() => {
+            try {
+                if (!unsafeWindow.livePlayer || !unsafeWindow.livePlayer.getPlayerInfo || !unsafeWindow.livePlayer.switchQuality) {
+                    console.log("[直播轮询] 播放器尚未就绪，跳过本次轮询");
+                    return;
+                }
+                const playerInfo = unsafeWindow.livePlayer.getPlayerInfo();
+                const targetQuality = resolveLiveTargetQuality(playerInfo.qualityCandidates);
+                if (!targetQuality) return;
+                const currentQn = playerInfo.quality;
+                if (currentQn !== targetQuality.qn) {
+                    console.log(`[直播轮询] 画质偏离：当前 qn=${currentQn}，目标 ${targetQuality.desc} (qn=${targetQuality.qn})，执行切换`);
+                    unsafeWindow.livePlayer.switchQuality(targetQuality.qn);
+                } else {
+                    console.log(`[直播轮询] 画质正常：${targetQuality.desc} (qn=${targetQuality.qn})`);
+                }
+            } catch (e) {
+                console.warn("[直播轮询] 轮询执行出错:", e);
+            }
+        }, intervalMs);
+        updatePollingStatusIndicator();
+    }
+    function stopLivePolling() {
+        if (state.livePollingTimerId !== null) {
+            clearInterval(state.livePollingTimerId);
+            state.livePollingTimerId = null;
+            console.log("[直播轮询] 已停止画质轮询锁定");
+        }
+        updatePollingStatusIndicator();
+    }
+    function restartLivePollingIfNeeded() {
+        if (state.liveQualityPollingEnabled) {
+            startLivePolling();
+        }
+    }
+    function startLiveKeepAlive() {
+        stopLiveKeepAlive();
+        if (!state.liveKeepAliveEnabled) return;
+        const intervalMs = state.liveKeepAliveInterval * 60 * 1000;
+        console.log(`[直播保活] 启动模拟活跃，间隔 ${state.liveKeepAliveInterval} 分钟`);
+        state.liveKeepAliveTimerId = setInterval(() => {
+            try {
+                const evt = new MouseEvent("mousemove", {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: Math.floor(Math.random() * window.innerWidth),
+                    clientY: Math.floor(Math.random() * window.innerHeight)
+                });
+                document.dispatchEvent(evt);
+                console.log("[直播保活] 已模拟鼠标移动");
+            } catch (e) {
+                console.warn("[直播保活] 模拟操作失败:", e);
+            }
+        }, intervalMs);
+        updateKeepAliveStatusIndicator();
+    }
+    function stopLiveKeepAlive() {
+        if (state.liveKeepAliveTimerId !== null) {
+            clearInterval(state.liveKeepAliveTimerId);
+            state.liveKeepAliveTimerId = null;
+            console.log("[直播保活] 已停止模拟活跃");
+        }
+        updateKeepAliveStatusIndicator();
+    }
+    function updateKeepAliveStatusIndicator() {
+        const statusEl = document.getElementById("live-keepalive-status");
+        if (!statusEl) return;
+        const active = state.liveKeepAliveEnabled && state.liveKeepAliveTimerId !== null;
+        statusEl.className = 'polling-status ' + (active ? 'active' : 'inactive');
+        statusEl.textContent = active
+            ? '保活运行中，每 ' + state.liveKeepAliveInterval + ' 分钟模拟一次'
+            : '保活未启用';
     }
     function createDecodeSettingsPanel() {
         const panel = document.createElement("div");
@@ -2022,7 +2306,12 @@
         checkIfLivePage();
         if (state.isLivePage) {
             state.liveEntryForceHighest = state.userLiveQualitySetting === "最高画质";
-            selectLiveQuality().then(() => { createLiveSettingsPanel(); applyDecodeSetting(); });
+            selectLiveQuality().then(() => {
+                createLiveSettingsPanel();
+                applyDecodeSetting();
+                if (state.liveQualityPollingEnabled) startLivePolling();
+                if (state.liveKeepAliveEnabled) startLiveKeepAlive();
+            });
         } else {
             const DOM = {
                 selectors: {
@@ -2158,23 +2447,28 @@
 
     // 后台标签页切回前台时的画质补救
     document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState !== "visible" || state.qualitySetSuccessfully) return;
+        if (document.visibilityState !== "visible") return;
 
-        console.log("[可见性恢复] 标签页变为可见，画质尚未成功设置，尝试重新触发");
+        checkIfLivePage();
 
-        // 给进行中的初始化流程一个完成窗口，避免与 MutationObserver 链路竞争
-        setTimeout(async () => {
-            if (state.qualitySetSuccessfully) return;
-
-            checkIfLivePage();
-
-            if (state.isLivePage) {
+        // 直播页切回前台始终重新切换画质
+        if (state.isLivePage) {
+            console.log("[可见性恢复] 直播页标签页变为可见，重新执行画质切换");
+            setTimeout(async () => {
                 if (unsafeWindow.livePlayer && unsafeWindow.livePlayer.getPlayerInfo && unsafeWindow.livePlayer.switchQuality) {
                     state.liveEntryForceHighest = state.userLiveQualitySetting === "最高画质";
                     await selectLiveQuality();
                 }
-                return;
-            }
+            }, 800);
+            return;
+        }
+
+        if (state.qualitySetSuccessfully) return;
+
+        console.log("[可见性恢复] 标签页变为可见，画质尚未成功设置，尝试重新触发");
+
+        setTimeout(async () => {
+            if (state.qualitySetSuccessfully) return;
 
             const taskId = taskQueue.generateTaskId();
             state.isLoading = true;
@@ -2374,6 +2668,8 @@
         window.addEventListener(eventName, onUrlChange);
     });
     window.addEventListener('beforeunload', () => {
+        stopLivePolling();
+        stopLiveKeepAlive();
         urlChangeEvents.forEach(eventName => {
             window.removeEventListener(eventName, onUrlChange);
         });
