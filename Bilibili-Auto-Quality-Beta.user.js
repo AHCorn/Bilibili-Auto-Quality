@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.5-Beta
+// @version      5.5.1-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -1544,7 +1544,7 @@
             <div class="toggle-switch">
               <label for="live-quality-polling">
                 画质轮询锁定
-                <div class="description">定时检查画质并自动切换回目标画质，后台标签页同样有效</div>
+                <div class="description">定时检查画质并自动切换回目标画质</div>
               </label>
               <label class="switch">
                 <input type="checkbox" id="live-quality-polling" ${state.liveQualityPollingEnabled ? 'checked' : ''}>
