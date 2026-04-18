@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.5.1-Beta
+// @version      5.5.2-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -30,6 +30,40 @@
 (async function () {
     "use strict";
     if (typeof unsafeWindow === "undefined") { unsafeWindow = window; }
+
+    // 防后台降画质：劫持 Page Visibility 四个属性为恒定可见
+    // 只改属性不拦截事件，避免破坏弹幕时间同步等依赖 visibilitychange 的功能
+    // 保存原 descriptor 以支持运行时切换（关闭时完全还原）
+    const VISIBILITY_PROPS = ["visibilityState", "hidden", "webkitVisibilityState", "webkitHidden"];
+    let originalVisibilityDescriptors = null;
+    function applyVisibilityHijack(enable) {
+        try {
+            const proto = unsafeWindow.Document.prototype;
+            if (enable) {
+                if (!originalVisibilityDescriptors) {
+                    originalVisibilityDescriptors = {};
+                    for (const p of VISIBILITY_PROPS) originalVisibilityDescriptors[p] = Object.getOwnPropertyDescriptor(proto, p);
+                }
+                const visibleDesc = { configurable: true, enumerable: true, get: () => "visible" };
+                const hiddenDesc = { configurable: true, enumerable: true, get: () => false };
+                Object.defineProperty(proto, "visibilityState", visibleDesc);
+                Object.defineProperty(proto, "hidden", hiddenDesc);
+                Object.defineProperty(proto, "webkitVisibilityState", visibleDesc);
+                Object.defineProperty(proto, "webkitHidden", hiddenDesc);
+                console.log("[防后台降画质] 已启用");
+            } else if (originalVisibilityDescriptors) {
+                for (const p of VISIBILITY_PROPS) {
+                    if (originalVisibilityDescriptors[p]) Object.defineProperty(proto, p, originalVisibilityDescriptors[p]);
+                    else delete proto[p];
+                }
+                console.log("[防后台降画质] 已关闭");
+            }
+        } catch (e) {
+            console.warn("[防后台降画质] 切换失败:", e);
+        }
+    }
+    applyVisibilityHijack(GM_getValue("preventBackgroundDegrade", true));
+
     const state = {
         hiResAudioEnabled: GM_getValue("hiResAudio", false),
         dolbyAtmosEnabled: GM_getValue("dolbyAtmos", false),
@@ -48,6 +82,9 @@
         isLoading: true,
         isLivePage: false,
         liveEntryForceHighest: false,
+        // 防后台降画质相关
+        preventBackgroundDegrade: GM_getValue("preventBackgroundDegrade", true),
+        liveAutoRecoverOnVisible: GM_getValue("liveAutoRecoverOnVisible", false),
         userLiveQualitySetting: GM_getValue("liveQualitySetting", "最高画质"),
         userLiveDecodeSetting: GM_getValue("liveDecodeSetting", "默认"),
         userVideoDecodeSetting: GM_getValue("videoDecodeSetting", "默认"),
@@ -1537,7 +1574,28 @@
             <div class="live-quality-group">
               ${LIVE_QUALITIES.map(quality => `<button class="live-quality-button ${quality === state.userLiveQualitySetting ? 'active' : ''}" data-quality="${quality}">${quality}</button>`).join('')}
             </div>
-            <div class="quality-section-title">画质锁定</div>
+            <div class="quality-section-title">画质稳定 <span style="font-size: 12px; color: #f25d8e; font-weight: normal;">Beta</span></div>
+            <div class="toggle-switch">
+              <label for="prevent-bg-degrade">
+                防后台降画质
+                <div class="description">切到其他标签时不降画质</div>
+              </label>
+              <label class="switch">
+                <input type="checkbox" id="prevent-bg-degrade" ${state.preventBackgroundDegrade ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="toggle-switch">
+              <label for="live-auto-recover">
+                切回前台时自动纠正画质
+                <div class="description">发现画质与目标不符时自动重切</div>
+              </label>
+              <label class="switch">
+                <input type="checkbox" id="live-auto-recover" ${state.liveAutoRecoverOnVisible ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="quality-section-title">画质锁定 <span style="font-size: 12px; color: #f25d8e; font-weight: normal;">Beta</span></div>
             <div class="polling-status ${pollingActive ? 'active' : 'inactive'}" id="live-polling-status">
               ${pollingActive ? '轮询运行中，每 ' + state.livePollingInterval + ' 秒检查一次' : '轮询未启用'}
             </div>
@@ -1647,6 +1705,21 @@
                     GM_setValue("liveKeepAliveInterval", value);
                     if (state.liveKeepAliveEnabled) startLiveKeepAlive();
                     updateKeepAliveStatusIndicator();
+                });
+            }
+            const preventBgSwitch = panel.querySelector("#prevent-bg-degrade");
+            if (preventBgSwitch) {
+                preventBgSwitch.addEventListener("change", function (e) {
+                    state.preventBackgroundDegrade = e.target.checked;
+                    GM_setValue("preventBackgroundDegrade", state.preventBackgroundDegrade);
+                    applyVisibilityHijack(state.preventBackgroundDegrade);
+                });
+            }
+            const liveAutoRecoverSwitch = panel.querySelector("#live-auto-recover");
+            if (liveAutoRecoverSwitch) {
+                liveAutoRecoverSwitch.addEventListener("change", function (e) {
+                    state.liveAutoRecoverOnVisible = e.target.checked;
+                    GM_setValue("liveAutoRecoverOnVisible", state.liveAutoRecoverOnVisible);
                 });
             }
         }
@@ -2447,13 +2520,16 @@
 
     // 后台标签页切回前台时的画质补救
     document.addEventListener("visibilitychange", () => {
+        // 防后台降画质启用时 visibilityState 恒为 visible，无需也无法判断真实可见性，直接跳过兜底
+        if (state.preventBackgroundDegrade) return;
         if (document.visibilityState !== "visible") return;
 
         checkIfLivePage();
 
-        // 直播页切回前台始终重新切换画质
+        // 直播页切回前台时重新切换画质（仅在用户开启了该兜底时执行）
         if (state.isLivePage) {
-            console.log("[可见性恢复] 直播页标签页变为可见，重新执行画质切换");
+            if (!state.liveAutoRecoverOnVisible) return;
+            console.log("[可见性恢复] 直播页切回前台，重新切换画质");
             setTimeout(async () => {
                 if (unsafeWindow.livePlayer && unsafeWindow.livePlayer.getPlayerInfo && unsafeWindow.livePlayer.switchQuality) {
                     state.liveEntryForceHighest = state.userLiveQualitySetting === "最高画质";
