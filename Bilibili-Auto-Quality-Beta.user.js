@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.5.3-Beta
+// @version      5.6-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -933,25 +933,17 @@
         font-weight: normal;
         margin-left: 4px;
     }
-    .polling-status {
-        padding: 10px;
-        border-radius: 8px;
-        margin-bottom: 12px;
-        text-align: center;
+    .beta-tag {
+        display: inline-block;
+        padding: 1px 6px;
+        margin-left: 8px;
+        font-size: 10px;
         font-weight: 600;
-        font-size: 13px;
-        transition: all 0.3s ease;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 1px rgba(0,0,0,0.02);
-    }
-    .polling-status.active {
-        background-color: #e8f5e9;
-        color: #2e7d32;
-        border: 1px solid #c8e6c9;
-    }
-    .polling-status.inactive {
-        background-color: #f5f5f5;
-        color: #999;
-        border: 1px solid #e5e7eb;
+        color: #8a94a6;
+        background: #eef1f5;
+        border-radius: 4px;
+        vertical-align: middle;
+        letter-spacing: 0.5px;
     }
     #bilibili-decode-settings .quality-group {
         grid-template-columns: repeat(2, 1fr);
@@ -1579,7 +1571,7 @@
             <div class="live-quality-group">
               ${LIVE_QUALITIES.map(q => `<button class="live-quality-button ${q.value === state.userLiveQualitySetting ? 'active' : ''}" data-quality="${q.value}">${q.label}</button>`).join('')}
             </div>
-            <div class="quality-section-title">画质稳定 <span style="font-size: 12px; color: #f25d8e; font-weight: normal;">Beta</span></div>
+            <div class="quality-section-title">画质稳定<span class="beta-tag">BETA</span></div>
             <div class="toggle-switch">
               <label for="prevent-bg-degrade">
                 防后台降画质
@@ -1600,14 +1592,11 @@
                 <span class="slider"></span>
               </label>
             </div>
-            <div class="quality-section-title">画质锁定 <span style="font-size: 12px; color: #f25d8e; font-weight: normal;">Beta</span></div>
-            <div class="polling-status ${pollingActive ? 'active' : 'inactive'}" id="live-polling-status">
-              ${pollingActive ? '轮询运行中，每 ' + state.livePollingInterval + ' 秒检查一次' : '轮询未启用'}
-            </div>
+            <div class="quality-section-title">画质锁定<span class="beta-tag">BETA</span></div>
             <div class="toggle-switch">
               <label for="live-quality-polling">
                 画质轮询锁定
-                <div class="description">定时检查画质并自动切换回目标画质</div>
+                <div class="description" id="live-polling-status">${pollingActive ? '运行中，每 ' + state.livePollingInterval + ' 秒检查一次' : '未启用'}</div>
               </label>
               <label class="switch">
                 <input type="checkbox" id="live-quality-polling" ${state.liveQualityPollingEnabled ? 'checked' : ''}>
@@ -1622,14 +1611,11 @@
               <input type="number" id="live-polling-interval" value="${state.livePollingInterval}" min="5" max="3600" step="1" ${!state.liveQualityPollingEnabled ? 'disabled' : ''}>
               <span class="unit">秒</span>
             </div>
-            <div class="quality-section-title">页面保活 <span style="font-size: 12px; color: #f25d8e; font-weight: normal;">Beta</span></div>
-            <div class="polling-status ${keepAliveActive ? 'active' : 'inactive'}" id="live-keepalive-status">
-              ${keepAliveActive ? '保活运行中，每 ' + state.liveKeepAliveInterval + ' 分钟模拟一次' : '保活未启用'}
-            </div>
+            <div class="quality-section-title">页面保活<span class="beta-tag">BETA</span></div>
             <div class="toggle-switch">
               <label for="live-keep-alive">
                 模拟用户活跃
-                <div class="description">定时模拟鼠标移动，防止页面因长时间无操作被暂停</div>
+                <div class="description" id="live-keepalive-status">${keepAliveActive ? '运行中，每 ' + state.liveKeepAliveInterval + ' 分钟模拟一次' : '未启用'}</div>
               </label>
               <label class="switch">
                 <input type="checkbox" id="live-keep-alive" ${state.liveKeepAliveEnabled ? 'checked' : ''}>
@@ -1835,10 +1821,9 @@
         const statusEl = document.getElementById("live-polling-status");
         if (!statusEl) return;
         const pollingActive = state.liveQualityPollingEnabled && state.livePollingTimerId !== null;
-        statusEl.className = 'polling-status ' + (pollingActive ? 'active' : 'inactive');
         statusEl.textContent = pollingActive
-            ? '轮询运行中，每 ' + state.livePollingInterval + ' 秒检查一次'
-            : '轮询未启用';
+            ? '运行中，每 ' + state.livePollingInterval + ' 秒检查一次'
+            : '未启用';
     }
     function startLivePolling() {
         stopLivePolling();
@@ -1913,10 +1898,9 @@
         const statusEl = document.getElementById("live-keepalive-status");
         if (!statusEl) return;
         const active = state.liveKeepAliveEnabled && state.liveKeepAliveTimerId !== null;
-        statusEl.className = 'polling-status ' + (active ? 'active' : 'inactive');
         statusEl.textContent = active
-            ? '保活运行中，每 ' + state.liveKeepAliveInterval + ' 分钟模拟一次'
-            : '保活未启用';
+            ? '运行中，每 ' + state.liveKeepAliveInterval + ' 分钟模拟一次'
+            : '未启用';
     }
     function createDecodeSettingsPanel() {
         const panel = document.createElement("div");
