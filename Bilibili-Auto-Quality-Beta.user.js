@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.5.2-Beta
+// @version      5.5.3-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -1564,7 +1564,12 @@
         const panel = document.createElement("div");
         panel.id = "bilibili-live-quality-selector";
         function updatePanel() {
-            const LIVE_QUALITIES = ["最高画质", "1080P 原画", "1080P 蓝光", "720P 超清"];
+            const LIVE_QUALITIES = [
+                { value: "最高画质", label: "最高画质" },
+                { value: "1080P 原画", label: "1080P 原画 / 高码率" },
+                { value: "1080P 蓝光", label: "1080P 蓝光" },
+                { value: "720P 超清", label: "720P 超清" },
+            ];
             const pollingActive = state.liveQualityPollingEnabled && state.livePollingTimerId !== null;
             const keepAliveActive = state.liveKeepAliveEnabled && state.liveKeepAliveTimerId !== null;
             panel.innerHTML = `
@@ -1572,7 +1577,7 @@
             ${renderGithubLink()}
             <div class="quality-section-title">画质选择</div>
             <div class="live-quality-group">
-              ${LIVE_QUALITIES.map(quality => `<button class="live-quality-button ${quality === state.userLiveQualitySetting ? 'active' : ''}" data-quality="${quality}">${quality}</button>`).join('')}
+              ${LIVE_QUALITIES.map(q => `<button class="live-quality-button ${q.value === state.userLiveQualitySetting ? 'active' : ''}" data-quality="${q.value}">${q.label}</button>`).join('')}
             </div>
             <div class="quality-section-title">画质稳定 <span style="font-size: 12px; color: #f25d8e; font-weight: normal;">Beta</span></div>
             <div class="toggle-switch">
@@ -1727,10 +1732,20 @@
         panel.updatePanel = updatePanel;
         updatePanel();
     }
+    const LIVE_QUALITY_QN_MAP = {
+        "1080P 原画": 10000,
+        "1080P 蓝光": 400,
+        "720P 超清": 250,
+    };
     function resolveLiveTargetQuality(qualityCandidates) {
         if (!qualityCandidates || qualityCandidates.length === 0) return null;
         if (state.userLiveQualitySetting === "最高画质") {
             return qualityCandidates[0];
+        }
+        const targetQn = LIVE_QUALITY_QN_MAP[state.userLiveQualitySetting];
+        if (typeof targetQn === "number") {
+            const byQn = qualityCandidates.find(q => Number(q.qn) === targetQn);
+            if (byQn) return byQn;
         }
         return qualityCandidates.find(q => q.desc.includes(state.userLiveQualitySetting)) || null;
     }
@@ -1765,7 +1780,11 @@
         const targetQuality = resolveLiveTargetQuality(qualityCandidates);
 
         if (!targetQuality) {
-            console.log("[直播画质] 画质切换失败 (列表加载失败)，跳过切换。");
+            if (!qualityCandidates || qualityCandidates.length === 0) {
+                console.log("[直播画质] 画质切换失败 (候选列表为空)，跳过切换。");
+            } else {
+                console.log(`[直播画质] 画质切换失败 (未找到匹配项: ${state.userLiveQualitySetting})，跳过切换。`);
+            }
             return;
         }
 
