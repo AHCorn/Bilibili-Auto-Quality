@@ -64,13 +64,34 @@
     }
     applyVisibilityHijack(GM_getValue("preventBackgroundDegrade", true));
 
+    // 视频画质的默认优先级；用户拖拽排序会覆盖这个顺序。
+    const DEFAULT_QUALITY_ORDER = [
+        "8K",
+        "杜比视界",
+        "HDR",
+        "4K",
+        "1080P 高码率",
+        "1080P 60帧",
+        "1080P 高清",
+        "720P 60帧",
+        "720P",
+        "480P",
+        "360P",
+        "自动"
+    ];
+    const VIP_QUALITY_NAMES = ["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧"];
+    function normalizeQualityOrder(order) {
+        // 兼容旧版本保存的“默认”，当前 B 站菜单实际显示为“自动”。
+        const storedOrder = Array.isArray(order) ? order.map(q => q === "默认" ? "自动" : q) : [];
+        const validStoredOrder = storedOrder.filter(q => DEFAULT_QUALITY_ORDER.includes(q));
+        // 过滤无效项、去重，并补齐新版新增的画质项。
+        return Array.from(new Set([...validStoredOrder, ...DEFAULT_QUALITY_ORDER]));
+    }
+
     const state = {
         hiResAudioEnabled: GM_getValue("hiResAudio", false),
         dolbyAtmosEnabled: GM_getValue("dolbyAtmos", false),
-        userQualitySetting: GM_getValue("qualitySetting", "最高画质"),
-        userBackupQualitySetting: GM_getValue("backupQualitySetting", "最高画质"),
-        useHighestQualityFallback: GM_getValue("useHighestQualityFallback", true),
-        activeQualityTab: GM_getValue("activeQualityTab", "primary"),
+        qualityOrder: normalizeQualityOrder(GM_getValue("qualityOrder", DEFAULT_QUALITY_ORDER)),
         takeOverQualityControl: GM_getValue("takeOverQualityControl", false),
         // 解锁相关设置
         unlockUA: GM_getValue("unlockUA", false),
@@ -355,6 +376,83 @@
         border-color: #f25d8e;
         box-shadow: 0 6px 12px rgba(242, 93, 142, 0.3);
     }
+    .quality-order-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .quality-order-item {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr) 28px;
+        align-items: center;
+        gap: 10px;
+        background-color: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 8px 10px;
+        color: #3c4043;
+        cursor: grab;
+        user-select: none;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 1px rgba(0,0,0,0.02);
+    }
+    .quality-order-item:hover {
+        border-color: rgba(0, 161, 214, 0.45);
+        box-shadow: 0 3px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.035);
+    }
+    .quality-order-item.dragging {
+        opacity: 0.45;
+        border-color: #00a1d6;
+        cursor: grabbing;
+    }
+    .quality-order-rank {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #edf7fb;
+        color: #00a1d6;
+        font-weight: 700;
+        font-size: 13px;
+    }
+    .quality-order-name {
+        font-weight: 600;
+        font-size: 14px;
+        overflow-wrap: anywhere;
+    }
+    .quality-order-item.vip-quality .quality-order-name {
+        color: #f25d8e;
+    }
+    .quality-order-drag {
+        color: #8a96a3;
+        font-size: 18px;
+        text-align: center;
+        line-height: 1;
+        cursor: grab;
+    }
+    .quality-order-reset {
+        border: 1px solid #d8dde3;
+        background: #f7f9fb;
+        color: #3c4043;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-weight: 700;
+    }
+    .quality-order-reset {
+        width: 100%;
+        padding: 9px 10px;
+        margin-bottom: 18px;
+        font-size: 14px;
+    }
+    .quality-order-reset:hover {
+        background: #eef7fb;
+        border-color: #00a1d6;
+        color: #00a1d6;
+    }
     .toggle-switch {
         display: flex;
         align-items: center;
@@ -444,6 +542,22 @@
         .quality-button {
             padding: 8px 6px;
             font-size: 13px;
+        }
+        .quality-order-item {
+            grid-template-columns: 28px minmax(0, 1fr) 24px;
+            gap: 8px;
+            padding: 8px;
+        }
+        .quality-order-rank {
+            width: 26px;
+            height: 26px;
+            font-size: 12px;
+        }
+        .quality-order-name {
+            font-size: 13px;
+        }
+        .quality-order-drag {
+            font-size: 16px;
         }
         .live-quality-button {
             padding: 10px 6px;
@@ -987,22 +1101,71 @@
         "bilibili-unlock-settings",
         "bilibili-decode-settings"
     ];
-    const QUALITY_ORDER = [
-        "8K",
-        "杜比视界",
-        "HDR",
-        "4K",
-        "1080P 高码率",
-        "1080P 60帧",
-        "1080P 高清",
-        "720P 60帧",
-        "720P",
-        "480P",
-        "360P",
-        "默认"
-    ];
     const TRIAL_KEYWORDS = ["限免中", "试用中", "可试用", "试用"];
     const CLEAN_KEYWORDS = ["大会员", ...TRIAL_KEYWORDS];
+    function saveQualityOrder() {
+        // 保存副本，避免 GM 存储拿到可被后续原地修改的数组引用。
+        GM_setValue("qualityOrder", state.qualityOrder.slice());
+    }
+    function getQualityPreferenceIndex(name, preferenceOrder = state.qualityOrder) {
+        const cleanName = cleanQualityName(name);
+        // 先精确匹配，再兼容菜单里带附加文案的情况，例如“大会员”或“限免中”。
+        const exactIndex = preferenceOrder.findIndex(q => cleanName === q);
+        if (exactIndex !== -1) return exactIndex;
+        const partialIndex = preferenceOrder.findIndex(q => cleanName.includes(q));
+        return partialIndex !== -1 ? partialIndex : preferenceOrder.length;
+    }
+    function sortQualitiesByPreference(qualities, preferenceOrder = state.qualityOrder) {
+        // 同一优先级下保留页面原始顺序，避免未知画质在排序时来回跳动。
+        return qualities
+            .map((quality, index) => ({ ...quality, originalIndex: index }))
+            .sort((a, b) => {
+                const rankDiff = getQualityPreferenceIndex(a.name, preferenceOrder) - getQualityPreferenceIndex(b.name, preferenceOrder);
+                return rankDiff !== 0 ? rankDiff : a.originalIndex - b.originalIndex;
+            });
+    }
+    function cleanQualityName(name) {
+        if (!name) return "";
+        let result = name;
+        CLEAN_KEYWORDS.forEach(k => { result = result.replace(new RegExp(k, 'g'), ''); });
+        return result.trim();
+    }
+    function renderQualityOrderItems(panel) {
+        const list = panel ? panel.querySelector(".quality-order-list") : null;
+        if (!list) return;
+        // 列表项直接启用 HTML5 拖拽，拖拽结束后再统一同步 state。
+        list.innerHTML = state.qualityOrder.map((quality, index) => `
+            <div class="quality-order-item ${VIP_QUALITY_NAMES.includes(quality) ? 'vip-quality' : ''}" data-quality="${quality}" draggable="${!state.isLoading}">
+              <span class="quality-order-rank">${index + 1}</span>
+              <span class="quality-order-name">${quality}</span>
+              <span class="quality-order-drag" title="拖动排序">☰</span>
+            </div>
+        `).join('');
+    }
+    function getDragInsertTarget(list, clientY) {
+        // 找到鼠标当前位置下方最近的列表项，作为拖拽项插入点。
+        return Utils.queryAll(".quality-order-item:not(.dragging)", list).reduce((closest, item) => {
+            const box = item.getBoundingClientRect();
+            const offset = clientY - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset, element: item };
+            }
+            return closest;
+        }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+    }
+    function syncQualityOrderFromList(list) {
+        // DOM 顺序是拖拽后的真实顺序，以它为准回写到持久化配置。
+        const nextOrder = Utils.queryAll(".quality-order-item", list)
+            .map(item => item.getAttribute("data-quality"))
+            .filter(q => q && DEFAULT_QUALITY_ORDER.includes(q));
+        const normalizedOrder = normalizeQualityOrder(nextOrder);
+        const orderChanged = normalizedOrder.join("|") !== state.qualityOrder.join("|");
+        state.qualityOrder = normalizedOrder;
+        if (orderChanged) {
+            saveQualityOrder();
+        }
+        return orderChanged;
+    }
     function setSetting(stateKey, gmKey, value) {
         state[stateKey] = value;
         GM_setValue(gmKey, value);
@@ -1047,8 +1210,8 @@
         if (!panel || state.isLoading || !state.vipStatusChecked) return;
         const nonVipWarning = panel.querySelector("#non-vip-warning");
         const audioWarning = panel.querySelector("#audio-warning");
-        if (!state.isVipUser && ["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧"].includes(state.userQualitySetting)) {
-            nonVipWarning.textContent = "无法使用此会员画质。已自动选择最高可用画质。";
+        if (!state.isVipUser && state.qualityOrder.some(q => VIP_QUALITY_NAMES.includes(q))) {
+            nonVipWarning.textContent = "会员画质不可用时会自动跳过，并按顺序选择最高可用画质。";
             nonVipWarning.style.display = "block";
         } else {
             nonVipWarning.style.display = "none";
@@ -1063,15 +1226,16 @@
     function updateQualityButtons(panel) {
         if (!panel) return;
         const statusBar = panel.querySelector(".status-bar");
+        renderQualityOrderItems(panel);
         if (state.isLoading) {
             statusBar.textContent = "加载中，请稍候...";
             statusBar.className = "status-bar";
-            Utils.queryAll(".quality-button, .toggle-switch", panel).forEach(el => {
+            Utils.queryAll(".quality-order-item, .quality-order-reset, .toggle-switch", panel).forEach(el => {
                 el.style.opacity = "0.5";
             });
         } else {
-            Utils.queryAll(".quality-button, .toggle-switch", panel).forEach(el => {
-                el.style.opacity = "1";
+            Utils.queryAll(".quality-order-item, .quality-order-reset, .toggle-switch", panel).forEach(el => {
+                el.style.opacity = "";
             });
             if (state.vipStatusChecked) {
                 statusBar.textContent = state.isVipUser
@@ -1080,63 +1244,22 @@
                 statusBar.className = "status-bar " + (state.isVipUser ? "vip" : "non-vip");
             }
         }
-        Utils.queryAll(".quality-tab", panel).forEach(tab => {
-            tab.classList.toggle("active", tab.getAttribute("data-tab") === state.activeQualityTab);
-        });
-        const tabs = panel.querySelector('.quality-tabs');
-        if (tabs) tabs.setAttribute('data-active', state.activeQualityTab);
-        Utils.queryAll(".quality-section", panel).forEach(section => {
-            section.classList.toggle("active", section.getAttribute("data-section") === state.activeQualityTab);
-        });
-        Utils.queryAll(".quality-button", panel).forEach(button => {
-            const section = button.closest(".quality-section");
-            button.classList.remove("active", "vip-quality");
-            if (
-                (section.getAttribute("data-section") === "primary" && button.getAttribute("data-quality") === state.userQualitySetting) ||
-                (section.getAttribute("data-section") === "backup" && button.getAttribute("data-quality") === state.userBackupQualitySetting)
-            ) {
-                button.classList.add("active");
-                if (["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧"].includes(button.getAttribute("data-quality"))) {
-                    button.classList.add("vip-quality");
-                }
-            }
-        });
-        const fallbackContainer = panel.querySelector("#highest-quality-fallback-container");
-        if (fallbackContainer) {
-            fallbackContainer.classList.toggle("show", state.userBackupQualitySetting !== "最高画质");
-            fallbackContainer.classList.toggle("hide", state.userBackupQualitySetting === "最高画质");
-        }
         const hiResAudioSwitch = panel.querySelector("#hi-res-audio");
         if (hiResAudioSwitch) hiResAudioSwitch.checked = state.hiResAudioEnabled;
         const dolbyAtmosSwitch = panel.querySelector("#dolby-atmos");
         if (dolbyAtmosSwitch) dolbyAtmosSwitch.checked = state.dolbyAtmosEnabled;
-        const fallbackCheckbox = panel.querySelector("#highest-quality-fallback");
-        if (fallbackCheckbox) fallbackCheckbox.checked = state.useHighestQualityFallback;
         updateWarnings(panel);
     }
     function createSettingsPanel() {
         const panel = document.createElement("div");
         panel.id = "bilibili-quality-selector";
-        const QUALITIES = ["最高画质", "8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧", "1080P 高清", "720P", "480P", "360P", "默认"];
         panel.innerHTML = `
           <h2>画质设置</h2>
           ${renderGithubLink()}
           <div class="status-bar"></div>
-          <div class="quality-tabs" data-active="${state.activeQualityTab}">
-            <div class="tab-indicator"></div>
-            <div class="quality-tab ${state.activeQualityTab === 'primary' ? 'active' : ''}" data-tab="primary">首选画质</div>
-            <div class="quality-tab ${state.activeQualityTab === 'backup' ? 'active' : ''}" data-tab="backup">备选画质</div>
-          </div>
-          <div class="quality-section ${state.activeQualityTab === 'primary' ? 'active' : ''}" data-section="primary">
-            <div class="quality-group">
-              ${QUALITIES.map(q => `<button class="quality-button" data-quality="${q}">${q}</button>`).join('')}
-            </div>
-          </div>
-          <div class="quality-section ${state.activeQualityTab === 'backup' ? 'active' : ''}" data-section="backup">
-            <div class="quality-group">
-              ${QUALITIES.map(q => `<button class="quality-button" data-quality="${q}">${q}</button>`).join('')}
-            </div>
-          </div>
+          <div class="quality-section-title">画质顺序</div>
+          <div class="quality-order-list"></div>
+          <button type="button" class="quality-order-reset">恢复默认顺序</button>
           <div id="non-vip-warning" class="warning" style="display:none;"></div>
           <div class="toggle-switch">
             <label for="hi-res-audio">Hi-Res 音质</label>
@@ -1153,13 +1276,6 @@
             </label>
           </div>
           <div id="audio-warning" class="warning" style="display:none;"></div>
-          <div class="toggle-switch ${state.userBackupQualitySetting !== "最高画质" ? 'show' : 'hide'}" id="highest-quality-fallback-container">
-            <label for="highest-quality-fallback">找不到备选画质时使用最高画质</label>
-            <label class="switch">
-              <input type="checkbox" id="highest-quality-fallback" ${state.useHighestQualityFallback ? 'checked' : ''}>
-              <span class="slider"></span>
-            </label>
-          </div>
           <div class="toggle-switch">
             <label for="inject-quality-button">注入画质选项</label>
             <label class="switch">
@@ -1168,48 +1284,61 @@
             </label>
           </div>
         `;
-        panel.addEventListener("click", function (e) {
-            const target = e.target;
-            if (target.classList.contains("quality-tab") && !state.isLoading) {
-                const prevTab = state.activeQualityTab;
-                const tabName = target.getAttribute("data-tab");
-                state.activeQualityTab = tabName;
-                GM_setValue("activeQualityTab", tabName);
-                Utils.queryAll(".quality-tab", panel).forEach(tab =>
-                    tab.classList.toggle("active", tab.getAttribute("data-tab") === tabName)
-                );
-                const tabs = panel.querySelector('.quality-tabs');
-                if (tabs) tabs.setAttribute('data-active', tabName);
-                // 切换可见的画质区域
-                Utils.queryAll(".quality-section", panel).forEach(section =>
-                    section.classList.toggle("active", section.getAttribute("data-section") === tabName)
-                );
-                // 切换后同步状态与高亮
-                updateQualityButtons(panel);
-            } else if (target.classList.contains("quality-button") && !state.isLoading) {
-                const section = target.closest(".quality-section");
-                const quality = target.getAttribute("data-quality");
-                if (section.getAttribute("data-section") === "primary") {
-                    state.userQualitySetting = quality;
-                    GM_setValue("qualitySetting", quality);
-                } else {
-                    state.userBackupQualitySetting = quality;
-                    GM_setValue("backupQualitySetting", quality);
-                    const fallbackContainer = Utils.query("#highest-quality-fallback-container", panel);
-                    if (fallbackContainer) {
-                        fallbackContainer.classList.toggle("show", quality !== "最高画质");
-                        fallbackContainer.classList.toggle("hide", quality === "最高画质");
-                    }
-                }
-                updateQualityButtons(panel);
-                selectQualityBasedOnSetting();
+        panel.addEventListener("dragstart", function (e) {
+            const target = e.target && typeof e.target.closest === "function" ? e.target : null;
+            if (!target || state.isLoading) return;
+            const item = target.closest(".quality-order-item");
+            if (!item) return;
+            // 标记正在拖拽的项，后续 dragover 会移动这个 DOM 节点。
+            item.classList.add("dragging");
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", item.getAttribute("data-quality") || "");
             }
         });
-        panel.querySelector("#highest-quality-fallback").addEventListener("change", function (e) {
-            if (!state.isLoading) {
-                state.useHighestQualityFallback = e.target.checked;
-                GM_setValue("useHighestQualityFallback", state.useHighestQualityFallback);
+        panel.addEventListener("dragover", function (e) {
+            const target = e.target && typeof e.target.closest === "function" ? e.target : null;
+            if (!target || state.isLoading) return;
+            const list = target.closest(".quality-order-list");
+            const draggingItem = list ? list.querySelector(".quality-order-item.dragging") : null;
+            if (!list || !draggingItem) return;
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+            // 拖拽过程中实时调整 DOM 顺序，用户松手时再保存。
+            const insertTarget = getDragInsertTarget(list, e.clientY);
+            if (!insertTarget) {
+                list.appendChild(draggingItem);
+            } else if (insertTarget !== draggingItem) {
+                list.insertBefore(draggingItem, insertTarget);
+            }
+        });
+        panel.addEventListener("drop", function (e) {
+            const target = e.target && typeof e.target.closest === "function" ? e.target : null;
+            if (!target || state.isLoading) return;
+            if (target.closest(".quality-order-list")) e.preventDefault();
+        });
+        panel.addEventListener("dragend", function (e) {
+            const target = e.target && typeof e.target.closest === "function" ? e.target : null;
+            const item = target ? target.closest(".quality-order-item") : null;
+            const list = item ? item.closest(".quality-order-list") : panel.querySelector(".quality-order-list");
+            if (item) item.classList.remove("dragging");
+            if (!list || state.isLoading) return;
+            const orderChanged = syncQualityOrderFromList(list);
+            updateQualityButtons(panel);
+            // 排序改变后立即按新的“画质顺序”重新选择目标画质。
+            if (orderChanged) selectQualityBasedOnSetting();
+        });
+
+        panel.addEventListener("click", function (e) {
+            const target = e.target && typeof e.target.closest === "function" ? e.target : null;
+            if (!target || state.isLoading) return;
+            const resetButton = target.closest(".quality-order-reset");
+            if (resetButton) {
+                state.qualityOrder = DEFAULT_QUALITY_ORDER.slice();
+                saveQualityOrder();
+                updateQualityButtons(panel);
                 selectQualityBasedOnSetting();
+                return;
             }
         });
         panel.querySelector("#hi-res-audio").addEventListener("change", function (e) {
@@ -1379,7 +1508,7 @@
         const currentQualityEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
         const currentQuality = currentQualityEl ? currentQualityEl.textContent : "";
         console.log("[画质设置] 当前画质:", currentQuality);
-        console.log("[画质设置] 目标画质:", state.userQualitySetting);
+        console.log("[画质设置] 画质顺序:", state.qualityOrder.join(" > "));
 
         // 确保会员状态已检查
         if (!state.vipStatusChecked) {
@@ -1429,87 +1558,35 @@
         console.log("[画质设置] 可用画质:", availableQualities.map(q => q.name));
         console.log("[画质设置] 会员状态:", state.isVipUser ? "是" : "否");
 
-        const qualityPreferences = QUALITY_ORDER;
-        let targetQuality;
-        function cleanQuality(q) {
-            if (!q) return "";
-            let result = q;
-            CLEAN_KEYWORDS.forEach(k => { result = result.replace(new RegExp(k, 'g'), ''); });
-            return result.trim();
-        }
-        if (state.userQualitySetting === "最高画质") {
-            const hasFreeVip = availableQualities.some(q => q.isFreeNow);
-            const allowFreeVipForNonVip = state.devModeEnabled && state.devAllowFreeVipQualities;
-            if (state.isVipUser) {
-                targetQuality = availableQualities[0];
-            } else if (hasFreeVip && allowFreeVipForNonVip) {
-                // 非会员在允许试用时，选择首个“试用/限免”或首个非会员画质
-                targetQuality = availableQualities.find(q => q.isFreeNow) || availableQualities.find(q => !q.isVipOnly);
-            } else {
-                availableQualities.sort((a, b) => {
-                    function getQualityIndex(name) {
-                        for (let i = 0; i < qualityPreferences.length; i++) {
-                            if (name.includes(qualityPreferences[i])) return i;
-                        }
-                        return qualityPreferences.length;
-                    }
-                    return getQualityIndex(a.name) - getQualityIndex(b.name);
-                });
-                const filteredForNonVip = state.isVipUser ? availableQualities : availableQualities.filter(q => !q.isVipOnly && !q.isFreeNow);
-                targetQuality = filteredForNonVip.find(q => cleanQuality(q.name).includes(state.userBackupQualitySetting));
-                if (!targetQuality && state.useHighestQualityFallback)
-                    targetQuality = (state.isVipUser || allowFreeVipForNonVip)
-                        ? availableQualities.find(q => !q.isVipOnly || q.isFreeNow)
-                        : availableQualities.find(q => !q.isVipOnly && !q.isFreeNow);
-                if (!targetQuality && !state.useHighestQualityFallback) {
-                    console.log("[画质设置] 未找到备选画质，保持当前画质");
-                    await setAudioQuality();
-                    return;
-                }
-            }
-        } else if (state.userQualitySetting === "默认") {
-            console.log("[画质设置] 使用默认画质");
-            state.qualitySetSuccessfully = true;
+        // 统一按用户配置的“画质顺序”排序，再根据会员/限免权限筛出可选项。
+        const orderedQualities = sortQualitiesByPreference(availableQualities);
+        const allowFreeVipForNonVip = state.devModeEnabled && state.devAllowFreeVipQualities;
+        const selectableQualities = state.isVipUser
+            ? orderedQualities
+            : orderedQualities.filter(q => allowFreeVipForNonVip ? (!q.isVipOnly || q.isFreeNow) : (!q.isVipOnly && !q.isFreeNow));
+        const targetQuality = selectableQualities[0];
+
+        if (!targetQuality) {
+            console.log("[画质设置] 未找到可用画质，保持当前画质");
             await setAudioQuality();
             return;
-        } else {
-            targetQuality = availableQualities.find(q => cleanQuality(q.name).includes(state.userQualitySetting));
-            if (!targetQuality) {
-                console.log("[画质设置] 未找到目标画质 " + state.userQualitySetting + ", 尝试使用备选画质");
-                targetQuality = availableQualities.find(q => cleanQuality(q.name).includes(state.userBackupQualitySetting));
-                if (!targetQuality && state.useHighestQualityFallback) {
-                    const allowFreeVipForNonVip = state.devModeEnabled && state.devAllowFreeVipQualities;
-                    targetQuality = state.isVipUser
-                        ? availableQualities[0]
-                        : (allowFreeVipForNonVip
-                            ? (availableQualities.find(q => q.isFreeNow) || availableQualities.find(q => !q.isVipOnly))
-                            : availableQualities.find(q => !q.isVipOnly && !q.isFreeNow));
-                }
-                if (!targetQuality && !state.useHighestQualityFallback) {
-                    console.log("[画质设置] 未找到备选画质，保持当前画质");
-                    await setAudioQuality();
-                    return;
-                }
-            }
         }
         console.log("[画质设置] 实际目标画质: " + targetQuality.name);
         
         // 避免将更高画质切换到更低画质
-        if (state.userQualitySetting === "最高画质") {
-            const currentQualityItem = availableQualities.find(q => cleanQuality(q.name) === cleanQuality(currentQuality));
-            const currentQualityIndex = currentQualityItem ? availableQualities.indexOf(currentQualityItem) : -1;
-            const targetQualityIndex = availableQualities.indexOf(targetQuality);
-            
-            // 获取到的可用画质数组按从高到低排序，索引越大画质越低
-            if (currentQualityIndex !== -1 && targetQualityIndex > currentQualityIndex) {
-                console.log(`[画质设置] 防护触发：当前画质 ${currentQuality} (数组索引${currentQualityIndex}) 高于目标 ${targetQuality.name} (数组索引${targetQualityIndex})，放弃切换`);
-                state.qualitySetSuccessfully = true;
-                await setAudioQuality();
-                return;
-            }
+        const currentQualityItem = orderedQualities.find(q => cleanQualityName(q.name) === cleanQualityName(currentQuality));
+        const currentQualityIndex = currentQualityItem ? orderedQualities.indexOf(currentQualityItem) : -1;
+        const targetQualityIndex = orderedQualities.indexOf(targetQuality);
+
+        // 可用画质数组已按用户顺序排序，索引越大优先级越低
+        if (currentQualityIndex !== -1 && targetQualityIndex > currentQualityIndex) {
+            console.log(`[画质设置] 防护触发：当前画质 ${currentQuality} (数组索引${currentQualityIndex}) 高于目标 ${targetQuality.name} (数组索引${targetQualityIndex})，放弃切换`);
+            state.qualitySetSuccessfully = true;
+            await setAudioQuality();
+            return;
         }
         
-        const targetQualityNameClean = cleanQuality(targetQuality.name);
+        const targetQualityNameClean = cleanQualityName(targetQuality.name);
         targetQuality.element.click();
         state.qualitySetSuccessfully = true;
 
@@ -1522,7 +1599,7 @@
 
                 const currentQualityAfterSwitchEl = document.querySelector(".bpx-player-ctrl-quality-menu-item.bpx-state-active .bpx-player-ctrl-quality-text");
                 const currentQualityAfterSwitch = currentQualityAfterSwitchEl ? currentQualityAfterSwitchEl.textContent : "";
-                if (currentQualityAfterSwitch && cleanQuality(currentQualityAfterSwitch) !== cleanQuality(targetQualityNameClean)) {
+                if (currentQualityAfterSwitch && cleanQualityName(currentQualityAfterSwitch) !== cleanQualityName(targetQualityNameClean)) {
                     console.log("[画质设置] 画质切换未成功，执行二次切换...");
                     // 重新打开清晰度菜单并重新定位目标项，避免旧元素失效
                     const qualityButton = document.querySelector('.bpx-player-ctrl-btn.bpx-player-ctrl-quality');
@@ -1533,7 +1610,7 @@
                     const qualityMenu = document.querySelector('.bpx-player-ctrl-quality-menu');
                     if (qualityMenu) {
                         const freshItems = Array.from(qualityMenu.querySelectorAll('.bpx-player-ctrl-quality-menu-item'));
-                        const freshTarget = freshItems.find(item => cleanQuality((item.textContent || '').trim()).includes(targetQualityNameClean));
+                        const freshTarget = freshItems.find(item => cleanQualityName((item.textContent || '').trim()).includes(targetQualityNameClean));
                         if (freshTarget && !taskQueue.isTaskCancelled(taskId)) {
                             freshTarget.click();
                         } else if (!freshTarget) {
