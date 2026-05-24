@@ -220,6 +220,9 @@
         scrollbar-width: thin;
         scrollbar-color: rgba(0, 161, 214, 0.3) transparent;
     }
+    #bilibili-quality-selector {
+        max-height: 80vh;
+    }
     .quality-tabs {
         display: flex;
         margin-bottom: 20px;
@@ -535,6 +538,9 @@
             padding: 20px;
             max-height: 80vh;
         }
+        #bilibili-quality-selector {
+            max-height: 75vh;
+        }
         .quality-group {
             grid-template-columns: repeat(2, 1fr);
             gap: 8px;
@@ -634,6 +640,9 @@
         #bilibili-quality-selector, #bilibili-live-quality-selector, #bilibili-dev-settings, #bilibili-unlock-settings {
             max-height: 90vh;
             padding: 15px;
+        }
+        #bilibili-quality-selector {
+            max-height: 85vh;
         }
         .quality-group {
             margin-bottom: 15px;
