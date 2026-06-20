@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      5.6
+// @version      6.0.1
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -68,9 +68,9 @@
         hiResAudioEnabled: GM_getValue("hiResAudio", false),
         dolbyAtmosEnabled: GM_getValue("dolbyAtmos", false),
         userQualitySetting: GM_getValue("qualitySetting", "最高画质"),
-        userBackupQualitySetting: GM_getValue("backupQualitySetting", "最高画质"),
         useHighestQualityFallback: GM_getValue("useHighestQualityFallback", true),
-        activeQualityTab: GM_getValue("activeQualityTab", "primary"),
+        customSortEnabled: GM_getValue("customSortEnabled", false),
+        customQualityOrder: null,
         takeOverQualityControl: GM_getValue("takeOverQualityControl", false),
         // 解锁相关设置
         unlockUA: GM_getValue("unlockUA", false),
@@ -196,45 +196,7 @@
         z-index: 10000;
         font-family: 'Segoe UI', 'Roboto', sans-serif;
         transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        scrollbar-width: thin;
-        scrollbar-color: rgba(0, 161, 214, 0.3) transparent;
     }
-    .quality-tabs {
-        display: flex;
-        margin-bottom: 20px;
-        border-radius: 12px;
-        background: #e8eaed;
-        padding: 4px;
-    }
-    .quality-tab {
-        flex: 1;
-        padding: 8px;
-        text-align: center;
-        cursor: pointer;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        color: #666;
-        font-weight: 600;
-    }
-    .quality-tab.active { background: transparent; }
-    .quality-section { display: none; }
-    .quality-section.active { display: block; }
-    .quality-tabs { position: relative; }
-    .quality-tabs .tab-indicator {
-        position: absolute;
-        top: 4px; left: 4px;
-        width: calc(50% - 8px);
-        height: calc(100% - 8px);
-        border-radius: 8px;
-        background: #00a1d6;
-        transition: transform 0.35s ease, background-color 0.35s ease;
-        z-index: 0;
-    }
-    .quality-tabs .quality-tab { position: relative; z-index: 1; }
-    .quality-tabs[data-active="primary"] .tab-indicator { transform: translateX(0); background: #00a1d6; }
-    .quality-tabs[data-active="backup"] .tab-indicator { transform: translateX(100%); background: #f25d8e; }
-    .quality-tabs[data-active="primary"] .quality-tab[data-tab="primary"],
-    .quality-tabs[data-active="backup"] .quality-tab[data-tab="backup"] { color: #fff; }
     .vip-status-section {
         background: #ffffff;
         border-radius: 16px;
@@ -260,12 +222,13 @@
     .vip-status-tabs {
         display: flex;
         border-radius: 12px;
-        background: #e8eaed;
+        background: #eef0f3;
         padding: 4px;
         position: relative;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
     }
     .vip-status-tabs.disabled {
-        opacity: 0.6;
+        opacity: 0.55;
         cursor: not-allowed;
     }
     .vip-tab-indicator {
@@ -274,9 +237,10 @@
         left: 4px;
         width: calc((100% - 8px) / 3);
         height: calc(100% - 8px);
-        border-radius: 8px;
+        border-radius: 9px;
         background: #00a1d6;
-        transition: transform 0.35s ease, background-color 0.35s ease;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.10);
+        transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1), background-color 0.28s ease, box-shadow 0.28s ease;
         z-index: 0;
     }
     .vip-status-tab {
@@ -284,22 +248,28 @@
         padding: 8px;
         text-align: center;
         cursor: pointer;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        color: #666;
+        border-radius: 9px;
+        transition: color 0.2s ease;
+        color: #5f6368;
         font-weight: 600;
+        font-size: 15px;
         position: relative;
         z-index: 1;
         display: flex;
         align-items: center;
         justify-content: center;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    .vip-status-tabs:not(.disabled) .vip-status-tab:not(.active):hover {
+        color: #3c4043;
     }
     .vip-status-tabs.disabled .vip-status-tab {
         cursor: not-allowed;
     }
-    .vip-status-tabs[data-active="默认"] .vip-tab-indicator { transform: translateX(0); background: #00a1d6; }
-    .vip-status-tabs[data-active="普通"] .vip-tab-indicator { transform: translateX(100%); background: #666; }
-    .vip-status-tabs[data-active="会员"] .vip-tab-indicator { transform: translateX(200%); background: #f25d8e; }
+    .vip-status-tabs[data-active="默认"] .vip-tab-indicator { transform: translateX(0); background: #00a1d6; box-shadow: 0 1px 2px rgba(0, 161, 214, 0.30), 0 2px 8px rgba(0, 161, 214, 0.22); }
+    .vip-status-tabs[data-active="普通"] .vip-tab-indicator { transform: translateX(100%); background: #6b7280; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.20), 0 2px 8px rgba(0, 0, 0, 0.12); }
+    .vip-status-tabs[data-active="会员"] .vip-tab-indicator { transform: translateX(200%); background: #f25d8e; box-shadow: 0 1px 2px rgba(242, 93, 142, 0.30), 0 2px 8px rgba(242, 93, 142, 0.24); }
     .vip-status-tabs[data-active="默认"] .vip-status-tab[data-status="默认"],
     .vip-status-tabs[data-active="普通"] .vip-status-tab[data-status="普通"],
     .vip-status-tabs[data-active="会员"] .vip-status-tab[data-status="会员"] { color: #fff; }
@@ -355,6 +325,81 @@
         border-color: #f25d8e;
         box-shadow: 0 6px 12px rgba(242, 93, 142, 0.3);
     }
+    .quality-button.cq-grid-item {
+        position: relative;
+        will-change: transform;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: none;
+    }
+    .quality-button.cq-grid-item:hover { transform: none; }
+    .cq-grid-item .cq-rank {
+        position: absolute;
+        top: 4px;
+        left: 7px;
+        color: #00a1d6;
+        font-size: 12px;
+        font-weight: 800;
+        opacity: 0;
+        transform: scale(0.6);
+        transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.2, 0, 0, 1);
+        pointer-events: none;
+        z-index: 2;
+    }
+    .quality-group.cq-dragging .cq-grid-item .cq-rank { opacity: 1; transform: scale(1); }
+    .cq-grid-item.cq-vip .cq-rank { color: #f25d8e; }
+    .cq-grid-item.cq-fallback {
+        background: #f0f9ff;
+        border-color: #38bdf8;
+        color: #0284c7;
+        box-shadow: inset 0 0 0 1.5px #38bdf8;
+    }
+    .cq-grid-item .cq-tag {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #0ea5e9;
+        font-size: 0;
+        overflow: hidden;
+        z-index: 2;
+    }
+    .cq-grid-item.cq-dimmed {
+        opacity: 0.5;
+        filter: grayscale(1);
+    }
+    .cq-grid-item.cq-dimmed .cq-rank { color: #aeb4bb; }
+    .cq-grid-item.cq-press { transform: scale(0.94); }
+    .cq-grid-item.dragging {
+        cursor: grabbing;
+        z-index: 30;
+        opacity: 1 !important;
+        filter: none !important;
+        box-shadow: 0 16px 32px rgba(0,0,0,0.20), 0 6px 16px rgba(0,0,0,0.12);
+        transition: box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+    }
+    .cq-hint {
+        font-size: 12px;
+        color: #8a9099;
+        line-height: 1.5;
+        margin: 2px 2px 18px;
+        text-align: center;
+    }
+    .cq-collapse {
+        display: grid;
+        grid-template-rows: 1fr;
+        transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .cq-collapse > .cq-collapse-inner {
+        overflow: hidden;
+        min-height: 0;
+        opacity: 1;
+        transition: opacity 0.24s ease;
+    }
+    .cq-collapse.collapsed { grid-template-rows: 0fr; }
+    .cq-collapse.collapsed > .cq-collapse-inner { opacity: 0; }
     .toggle-switch {
         display: flex;
         align-items: center;
@@ -362,7 +407,7 @@
         margin-bottom: 12px;
         padding: 10px 15px;
         border-radius: 12px;
-        transition: all 0.2s ease;
+        transition: background-color 0.2s ease, box-shadow 0.2s ease;
         background: #ffffff;
         border: 1px solid #e5e7eb;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 1px rgba(0,0,0,0.02);
@@ -371,17 +416,18 @@
         background-color: #f7f9fb;
         box-shadow: 0 3px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.035);
     }
-    .quality-tabs { box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 1px rgba(0,0,0,0.02); }
     .toggle-switch label {
         font-size: 16px;
         color: #3c4043;
         font-weight: 600;
+        cursor: pointer;
     }
     .switch {
         position: relative;
         display: inline-block;
         width: 52px;
         height: 28px;
+        flex-shrink: 0;
     }
     .switch input {
         opacity: 0;
@@ -391,23 +437,21 @@
     .slider {
         position: absolute;
         cursor: pointer;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: #ccc;
-        transition: .4s;
-        border-radius: 34px;
+        inset: 0;
+        background-color: #d1d5db;
+        transition: background-color 0.25s ease, box-shadow 0.2s ease;
+        border-radius: 999px;
     }
     .slider:before {
         position: absolute;
         content: "";
-        height: 20px;
-        width: 20px;
-        left: 4px;
-        bottom: 4px;
-        background-color: white;
-        transition: .4s;
+        height: 22px;
+        width: 22px;
+        left: 3px;
+        top: 3px;
+        background-color: #fff;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.08);
+        transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
         border-radius: 50%;
     }
     input:checked + .slider {
@@ -418,6 +462,19 @@
     }
     input:checked + .slider:before {
         transform: translateX(24px);
+    }
+    input:focus-visible + .slider {
+        box-shadow: 0 0 0 3px rgba(0, 161, 214, 0.35);
+    }
+    input:focus-visible + .slider.vip-audio {
+        box-shadow: 0 0 0 3px rgba(242, 93, 142, 0.35);
+    }
+    input:disabled + .slider {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    input:disabled + .slider:before {
+        box-shadow: none;
     }
     @keyframes fadeIn {
         from { opacity: 0; }
@@ -469,11 +526,6 @@
         .input-group .description {
             font-size: 12px;
         }
-        .input-group input[type="number"] {
-            width: 70px;
-            padding: 6px;
-            font-size: 13px;
-        }
         .github-link {
             top: 20px;
             right: 20px;
@@ -510,10 +562,6 @@
         .quality-section-title {
             font-size: 15px;
             margin: 15px 0 12px;
-        }
-        .quality-section-description {
-            font-size: 12px;
-            margin: -3px 0 12px;
         }
     }
     @media (max-height: 600px) {
@@ -562,25 +610,12 @@
         content: "";
         margin-right: 10px;
     }
+    /* 只改和基础面板不一样的部分 */
     #bilibili-dev-settings {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
         background: linear-gradient(135deg, #ffffff, #f8f9fa);
-        border-radius: 24px;
         box-shadow: 0 24px 60px rgba(0, 0, 0, 0.16), 0 10px 28px rgba(0, 0, 0, 0.10);
         padding: 32px;
-        width: 90%;
-        max-width: 420px;
-        max-height: 85vh;
-        overflow-y: auto;
-        overflow-x: hidden;
-        display: none;
-        z-index: 10000;
-        font-family: 'Segoe UI', 'Roboto', sans-serif;
-        scrollbar-width: thin;
-        scrollbar-color: rgba(0, 161, 214, 0.3) transparent;
+        max-width: 440px;
     }
     #bilibili-dev-settings.show, #bilibili-unlock-settings.show {
         display: block;
@@ -624,14 +659,14 @@
         color: #666;
         margin-top: 4px;
     }
-    #bilibili-dev-settings .toggle-switch label, #bilibili-unlock-settings .toggle-switch label {
+    #bilibili-dev-settings .toggle-switch label, #bilibili-unlock-settings .toggle-switch label, #bilibili-live-quality-selector .toggle-switch label {
         display: flex;
         flex-direction: column;
         font-size: 16px;
         color: #3c4043;
         font-weight: 600;
     }
-    #bilibili-dev-settings .input-group, #bilibili-unlock-settings .input-group {
+    #bilibili-dev-settings .input-group, #bilibili-unlock-settings .input-group, #bilibili-live-quality-selector .input-group {
         background: #ffffff;
         border-radius: 16px;
         padding: 15px;
@@ -643,16 +678,16 @@
         gap: 12px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 1px rgba(0,0,0,0.02);
     }
-    #bilibili-dev-settings .input-group.disabled, #bilibili-unlock-settings .input-group.disabled {
+    #bilibili-dev-settings .input-group.disabled, #bilibili-unlock-settings .input-group.disabled, #bilibili-live-quality-selector .input-group.disabled {
         opacity: 0.6;
         cursor: not-allowed;
     }
-    #bilibili-dev-settings .input-group:hover, #bilibili-unlock-settings .input-group:hover {
+    #bilibili-dev-settings .input-group:hover, #bilibili-unlock-settings .input-group:hover, #bilibili-live-quality-selector .input-group:hover {
         background: #f9fafb;
         border-color: #e1e7ef;
         box-shadow: 0 3px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.035);
     }
-    #bilibili-dev-settings .input-group label, #bilibili-unlock-settings .input-group label {
+    #bilibili-dev-settings .input-group label, #bilibili-unlock-settings .input-group label, #bilibili-live-quality-selector .input-group label {
         flex: 1;
         display: flex;
         flex-direction: column;
@@ -666,23 +701,130 @@
         margin-top: 4px;
         font-weight: normal;
     }
-    #bilibili-dev-settings .input-group input[type="number"], #bilibili-unlock-settings .input-group input[type="number"] {
-        width: 80px;
-        padding: 8px;
-        border: 2px solid #dadce0;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 500;
-        color: #3c4043;
-        transition: all 0.3s ease;
+    #bilibili-dev-settings .num-stepper,
+    #bilibili-unlock-settings .num-stepper,
+    #bilibili-live-quality-selector .num-stepper {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: stretch;
+        width: 168px;
+        height: 40px;
+        border: 1.5px solid #dadce0;
+        border-radius: 10px;
         background: #ffffff;
-        -moz-appearance: textfield;
+        overflow: hidden;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
-    #bilibili-dev-settings .input-group .unit, #bilibili-unlock-settings .input-group .unit {
-        color: #666;
+    #bilibili-dev-settings .num-stepper:focus-within,
+    #bilibili-unlock-settings .num-stepper:focus-within,
+    #bilibili-live-quality-selector .num-stepper:focus-within {
+        border-color: #00a1d6;
+        box-shadow: 0 0 0 3px rgba(0, 161, 214, 0.18);
+    }
+    #bilibili-dev-settings .num-stepper:focus-within {
+        border-color: #f25d8e;
+        box-shadow: 0 0 0 3px rgba(242, 93, 142, 0.18);
+    }
+    #bilibili-dev-settings .ns-btn,
+    #bilibili-unlock-settings .ns-btn,
+    #bilibili-live-quality-selector .ns-btn {
+        flex-shrink: 0;
+        width: 38px;
+        padding: 0;
+        border: none;
+        background: transparent;
+        color: #5f6368;
+        font-size: 20px;
+        font-weight: 500;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s ease, color 0.15s ease;
+        -webkit-user-select: none;
+        user-select: none;
+        touch-action: manipulation;
+    }
+    #bilibili-dev-settings .ns-btn:hover,
+    #bilibili-unlock-settings .ns-btn:hover,
+    #bilibili-live-quality-selector .ns-btn:hover {
+        background: #f1f3f4;
+        color: #202124;
+    }
+    #bilibili-dev-settings .ns-btn:active,
+    #bilibili-unlock-settings .ns-btn:active,
+    #bilibili-live-quality-selector .ns-btn:active {
+        background: #e8eaed;
+    }
+    #bilibili-dev-settings .ns-btn:hover {
+        background: #fdeef3;
+        color: #f25d8e;
+    }
+    #bilibili-dev-settings .ns-btn:active {
+        background: #f9d9e5;
+    }
+    #bilibili-dev-settings .ns-btn:disabled,
+    #bilibili-unlock-settings .ns-btn:disabled,
+    #bilibili-live-quality-selector .ns-btn:disabled {
+        color: #c8ccd1;
+        background: transparent;
+        cursor: default;
+    }
+    #bilibili-dev-settings .input-group.disabled .ns-btn,
+    #bilibili-unlock-settings .input-group.disabled .ns-btn,
+    #bilibili-live-quality-selector .input-group.disabled .ns-btn {
+        pointer-events: none;
+        color: #c8ccd1;
+    }
+    #bilibili-dev-settings .ns-field,
+    #bilibili-unlock-settings .ns-field,
+    #bilibili-live-quality-selector .ns-field {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        padding: 0 6px;
+        border-left: 1px solid #eceef1;
+        border-right: 1px solid #eceef1;
+    }
+    #bilibili-dev-settings .ns-field input[type="number"],
+    #bilibili-unlock-settings .ns-field input[type="number"],
+    #bilibili-live-quality-selector .ns-field input[type="number"] {
+        width: 1ch;
+        min-width: 1ch;
+        max-width: 100%;
+        border: none;
+        outline: none;
+        background: transparent;
+        padding: 0;
+        margin: 0;
+        text-align: center;
         font-size: 14px;
-        font-weight: normal;
-        margin-left: 4px;
+        font-weight: 600;
+        color: #3c4043;
+        -moz-appearance: textfield;
+        appearance: textfield;
+    }
+    #bilibili-dev-settings .ns-field input[type="number"]::-webkit-inner-spin-button,
+    #bilibili-dev-settings .ns-field input[type="number"]::-webkit-outer-spin-button,
+    #bilibili-unlock-settings .ns-field input[type="number"]::-webkit-inner-spin-button,
+    #bilibili-unlock-settings .ns-field input[type="number"]::-webkit-outer-spin-button,
+    #bilibili-live-quality-selector .ns-field input[type="number"]::-webkit-inner-spin-button,
+    #bilibili-live-quality-selector .ns-field input[type="number"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    #bilibili-dev-settings .ns-field .unit,
+    #bilibili-unlock-settings .ns-field .unit,
+    #bilibili-live-quality-selector .ns-field .unit {
+        flex-shrink: 0;
+        color: #9aa0a6;
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
     }
     #bilibili-dev-settings .refresh-button {
         width: 100%;
@@ -711,16 +853,8 @@
     #bilibili-dev-settings input:checked + .slider {
         background-color: #f25d8e;
     }
-    #bilibili-dev-settings input:checked + .slider:before {
-        transform: translateX(26px);
-        box-shadow: 0 2px 4px rgba(242, 93, 142, 0.2);
-    }
-    #bilibili-dev-settings input:disabled + .slider {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    #bilibili-dev-settings input:disabled + .slider:before {
-        box-shadow: none;
+    #bilibili-dev-settings input:focus-visible + .slider {
+        box-shadow: 0 0 0 3px rgba(242, 93, 142, 0.35);
     }
     #bilibili-unlock-settings h2 {
         margin: 0 0 24px;
@@ -755,20 +889,6 @@
         transform: none;
         box-shadow: none;
     }
-    #bilibili-unlock-settings input:checked + .slider {
-        background-color: #00a1d6;
-    }
-    #bilibili-unlock-settings input:checked + .slider:before {
-        transform: translateX(26px);
-        box-shadow: 0 2px 4px rgba(0, 161, 214, 0.2);
-    }
-    #bilibili-unlock-settings input:disabled + .slider {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    #bilibili-unlock-settings input:disabled + .slider:before {
-        box-shadow: none;
-    }
     @media (max-width: 480px) {
         #bilibili-dev-settings, #bilibili-unlock-settings {
             width: 95%;
@@ -783,9 +903,6 @@
     }
     .bpx-player-ctrl-quality.quality-button-hidden {
         display: none !important;
-    }
-    .quality-section {
-        margin-bottom: 20px;
     }
     .auto-quality-injected::after {
         content: "自动画质面板";
@@ -834,12 +951,6 @@
         padding-bottom: 8px;
         border-bottom: 2px solid rgba(0, 161, 214, 0.1);
     }
-    .quality-section-description {
-        font-size: 13px;
-        color: #666;
-        margin: -5px 0 15px;
-        line-height: 1.4;
-    }
     .live-quality-group {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
@@ -872,66 +983,12 @@
         border-color: #00a1d6;
         box-shadow: 0 6px 12px rgba(0, 161, 214, 0.3);
     }
-    #bilibili-live-quality-selector .toggle-switch label {
-        display: flex;
-        flex-direction: column;
-        font-size: 16px;
-        color: #3c4043;
-        font-weight: 600;
-    }
     #bilibili-live-quality-selector .toggle-switch .description,
     #bilibili-live-quality-selector .input-group .description {
         font-size: 13px;
         color: #666;
         margin-top: 4px;
         font-weight: normal;
-    }
-    #bilibili-live-quality-selector .input-group {
-        background: #ffffff;
-        border-radius: 16px;
-        padding: 15px;
-        margin-bottom: 16px;
-        border: 1px solid #e5e7eb;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 1px 1px rgba(0,0,0,0.02);
-    }
-    #bilibili-live-quality-selector .input-group:hover {
-        background: #f9fafb;
-        border-color: #e1e7ef;
-        box-shadow: 0 3px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.035);
-    }
-    #bilibili-live-quality-selector .input-group.disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-    }
-    #bilibili-live-quality-selector .input-group label {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        font-size: 15px;
-        color: #3c4043;
-        font-weight: 600;
-    }
-    #bilibili-live-quality-selector .input-group input[type="number"] {
-        width: 80px;
-        padding: 8px;
-        border: 2px solid #dadce0;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 500;
-        color: #3c4043;
-        transition: all 0.3s ease;
-        background: #ffffff;
-        -moz-appearance: textfield;
-    }
-    #bilibili-live-quality-selector .input-group .unit {
-        color: #666;
-        font-size: 14px;
-        font-weight: normal;
-        margin-left: 4px;
     }
     .beta-tag {
         display: inline-block;
@@ -948,10 +1005,20 @@
     #bilibili-decode-settings .quality-group {
         grid-template-columns: repeat(2, 1fr);
         gap: 16px;
+        margin-bottom: 0;
     }
     #bilibili-decode-settings .quality-button {
         padding: 12px 10px;
         font-size: 15px;
+    }
+    /* 没启用时整块禁用 */
+    #bilibili-decode-settings .decode-strategy {
+        margin-top: 20px;
+        transition: opacity 0.25s ease;
+    }
+    #bilibili-decode-settings .decode-strategy.disabled {
+        opacity: 0.45;
+        pointer-events: none;
     }
     #bilibili-quality-selector,
     #bilibili-live-quality-selector,
@@ -1003,6 +1070,44 @@
     ];
     const TRIAL_KEYWORDS = ["限免中", "试用中", "可试用", "试用"];
     const CLEAN_KEYWORDS = ["大会员", ...TRIAL_KEYWORDS];
+    const CUSTOM_HIGHEST = "最高画质";
+    const CUSTOM_DEFAULT = "默认";
+    const CUSTOM_QUALITY_ITEMS = ["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧", "1080P 高清", "720P", "480P", "360P"];
+    const VIP_QUALITIES = ["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧"];
+    const DEFAULT_CUSTOM_ORDER = [CUSTOM_HIGHEST, ...CUSTOM_QUALITY_ITEMS, CUSTOM_DEFAULT];
+    function normalizeCustomOrder(order) {
+        const known = new Set(DEFAULT_CUSTOM_ORDER);
+        const seen = new Set();
+        const result = [];
+        if (Array.isArray(order)) {
+            order.forEach(q => {
+                if (known.has(q) && !seen.has(q)) { result.push(q); seen.add(q); }
+            });
+        }
+        DEFAULT_CUSTOM_ORDER.forEach(q => { if (!seen.has(q)) { result.push(q); seen.add(q); } });
+        return result;
+    }
+    function customEffectiveCutoff(qualities) {
+        const hi = qualities.indexOf(CUSTOM_HIGHEST);
+        const def = qualities.indexOf(CUSTOM_DEFAULT);
+        if (hi === -1) return def;
+        if (def === -1) return hi;
+        return Math.min(hi, def);
+    }
+    function loadCustomOrder() {
+        let raw = GM_getValue("customQualityOrder", null);
+        if (typeof raw === "string") {
+            try { raw = JSON.parse(raw); } catch (e) { raw = null; }
+        }
+        return normalizeCustomOrder(raw);
+    }
+    function saveCustomOrder(order) {
+        const normalized = normalizeCustomOrder(order);
+        state.customQualityOrder = normalized;
+        GM_setValue("customQualityOrder", JSON.stringify(normalized));
+        return normalized;
+    }
+    state.customQualityOrder = loadCustomOrder();
     function setSetting(stateKey, gmKey, value) {
         state[stateKey] = value;
         GM_setValue(gmKey, value);
@@ -1047,7 +1152,7 @@
         if (!panel || state.isLoading || !state.vipStatusChecked) return;
         const nonVipWarning = panel.querySelector("#non-vip-warning");
         const audioWarning = panel.querySelector("#audio-warning");
-        if (!state.isVipUser && ["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧"].includes(state.userQualitySetting)) {
+        if (!state.isVipUser && VIP_QUALITIES.includes(state.userQualitySetting)) {
             nonVipWarning.textContent = "无法使用此会员画质。已自动选择最高可用画质。";
             nonVipWarning.style.display = "block";
         } else {
@@ -1080,32 +1185,22 @@
                 statusBar.className = "status-bar " + (state.isVipUser ? "vip" : "non-vip");
             }
         }
-        Utils.queryAll(".quality-tab", panel).forEach(tab => {
-            tab.classList.toggle("active", tab.getAttribute("data-tab") === state.activeQualityTab);
-        });
-        const tabs = panel.querySelector('.quality-tabs');
-        if (tabs) tabs.setAttribute('data-active', state.activeQualityTab);
-        Utils.queryAll(".quality-section", panel).forEach(section => {
-            section.classList.toggle("active", section.getAttribute("data-section") === state.activeQualityTab);
-        });
-        Utils.queryAll(".quality-button", panel).forEach(button => {
-            const section = button.closest(".quality-section");
+        Utils.queryAll("#quality-grid .quality-button", panel).forEach(button => {
             button.classList.remove("active", "vip-quality");
-            if (
-                (section.getAttribute("data-section") === "primary" && button.getAttribute("data-quality") === state.userQualitySetting) ||
-                (section.getAttribute("data-section") === "backup" && button.getAttribute("data-quality") === state.userBackupQualitySetting)
-            ) {
+            if (!state.customSortEnabled && button.getAttribute("data-quality") === state.userQualitySetting) {
                 button.classList.add("active");
-                if (["8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧"].includes(button.getAttribute("data-quality"))) {
+                if (VIP_QUALITIES.includes(button.getAttribute("data-quality"))) {
                     button.classList.add("vip-quality");
                 }
             }
         });
-        const fallbackContainer = panel.querySelector("#highest-quality-fallback-container");
-        if (fallbackContainer) {
-            fallbackContainer.classList.toggle("show", state.userBackupQualitySetting !== "最高画质");
-            fallbackContainer.classList.toggle("hide", state.userBackupQualitySetting === "最高画质");
-        }
+        if (state.customSortEnabled) refreshCustomGridDecorations(panel);
+        const hintCollapse = panel.querySelector("#custom-sort-hint-collapse");
+        if (hintCollapse) hintCollapse.classList.toggle("collapsed", !state.customSortEnabled);
+        const fallbackCollapse = panel.querySelector("#highest-quality-fallback-collapse");
+        if (fallbackCollapse) fallbackCollapse.classList.toggle("collapsed", state.customSortEnabled);
+        const customSortCheckbox = panel.querySelector("#custom-sort");
+        if (customSortCheckbox) customSortCheckbox.checked = state.customSortEnabled;
         const hiResAudioSwitch = panel.querySelector("#hi-res-audio");
         if (hiResAudioSwitch) hiResAudioSwitch.checked = state.hiResAudioEnabled;
         const dolbyAtmosSwitch = panel.querySelector("#dolby-atmos");
@@ -1117,27 +1212,53 @@
     function createSettingsPanel() {
         const panel = document.createElement("div");
         panel.id = "bilibili-quality-selector";
-        const QUALITIES = ["最高画质", "8K", "杜比视界", "HDR", "4K", "1080P 高码率", "1080P 60帧", "1080P 高清", "720P", "480P", "360P", "默认"];
+        const QUALITIES = DEFAULT_CUSTOM_ORDER;
+        function buildDefaultItemsHTML() {
+            return QUALITIES.map(q => `<button class="quality-button" data-quality="${q}">${q}</button>`).join('');
+        }
+        function buildCustomItemsHTML() {
+            const order = normalizeCustomOrder(state.customQualityOrder);
+            const cutoff = customEffectiveCutoff(order);
+            return order.map((q, i) => {
+                const isFallback = q === CUSTOM_HIGHEST;
+                const dimmed = cutoff !== -1 && i > cutoff;
+                const cls = ["quality-button", "cq-grid-item"];
+                if (isFallback) cls.push("cq-fallback");
+                if (dimmed) cls.push("cq-dimmed");
+                if (VIP_QUALITIES.includes(q)) cls.push("cq-vip");
+                const tag = isFallback ? `<span class="cq-tag">兜底</span>` : "";
+                const title = isFallback ? ` title="兜底：找不到上方偏好画质时，选当前可用的最高画质"` : "";
+                return `<button class="${cls.join(' ')}" data-quality="${q}" draggable="false"${title}><span class="cq-rank">${i + 1}</span>${q}${tag}</button>`;
+            }).join('');
+        }
+        function gridHTML() {
+            return state.customSortEnabled ? buildCustomItemsHTML() : buildDefaultItemsHTML();
+        }
+        function renderGrid() {
+            const grid = panel.querySelector("#quality-grid");
+            if (!grid) return;
+            grid.classList.toggle("cq-grid", state.customSortEnabled);
+            grid.classList.toggle("cq-sortable", state.customSortEnabled);
+            grid.innerHTML = gridHTML();
+        }
         panel.innerHTML = `
           <h2>画质设置</h2>
           ${renderGithubLink()}
           <div class="status-bar"></div>
-          <div class="quality-tabs" data-active="${state.activeQualityTab}">
-            <div class="tab-indicator"></div>
-            <div class="quality-tab ${state.activeQualityTab === 'primary' ? 'active' : ''}" data-tab="primary">首选画质</div>
-            <div class="quality-tab ${state.activeQualityTab === 'backup' ? 'active' : ''}" data-tab="backup">备选画质</div>
+          <div class="quality-group${state.customSortEnabled ? ' cq-grid cq-sortable' : ''}" id="quality-grid">
+            ${gridHTML()}
           </div>
-          <div class="quality-section ${state.activeQualityTab === 'primary' ? 'active' : ''}" data-section="primary">
-            <div class="quality-group">
-              ${QUALITIES.map(q => `<button class="quality-button" data-quality="${q}">${q}</button>`).join('')}
-            </div>
-          </div>
-          <div class="quality-section ${state.activeQualityTab === 'backup' ? 'active' : ''}" data-section="backup">
-            <div class="quality-group">
-              ${QUALITIES.map(q => `<button class="quality-button" data-quality="${q}">${q}</button>`).join('')}
-            </div>
-          </div>
+          <div class="cq-collapse ${state.customSortEnabled ? '' : 'collapsed'}" id="custom-sort-hint-collapse"><div class="cq-collapse-inner">
+            <div class="cq-hint">长按拖动卡片排列选择优先级，最高画质及默认后的选项不会生效。</div>
+          </div></div>
           <div id="non-vip-warning" class="warning" style="display:none;"></div>
+          <div class="toggle-switch" id="custom-sort-container">
+            <label for="custom-sort">自定义排序</label>
+            <label class="switch">
+              <input type="checkbox" id="custom-sort" ${state.customSortEnabled ? 'checked' : ''}>
+              <span class="slider"></span>
+            </label>
+          </div>
           <div class="toggle-switch">
             <label for="hi-res-audio">Hi-Res 音质</label>
             <label class="switch">
@@ -1153,13 +1274,15 @@
             </label>
           </div>
           <div id="audio-warning" class="warning" style="display:none;"></div>
-          <div class="toggle-switch ${state.userBackupQualitySetting !== "最高画质" ? 'show' : 'hide'}" id="highest-quality-fallback-container">
-            <label for="highest-quality-fallback">找不到备选画质时使用最高画质</label>
-            <label class="switch">
-              <input type="checkbox" id="highest-quality-fallback" ${state.useHighestQualityFallback ? 'checked' : ''}>
-              <span class="slider"></span>
-            </label>
-          </div>
+          <div class="cq-collapse ${state.customSortEnabled ? 'collapsed' : ''}" id="highest-quality-fallback-collapse"><div class="cq-collapse-inner">
+            <div class="toggle-switch" id="highest-quality-fallback-container">
+              <label for="highest-quality-fallback">找不到目标画质时使用最高画质</label>
+              <label class="switch">
+                <input type="checkbox" id="highest-quality-fallback" ${state.useHighestQualityFallback ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div></div>
           <div class="toggle-switch">
             <label for="inject-quality-button">注入画质选项</label>
             <label class="switch">
@@ -1169,41 +1292,22 @@
           </div>
         `;
         panel.addEventListener("click", function (e) {
-            const target = e.target;
-            if (target.classList.contains("quality-tab") && !state.isLoading) {
-                const prevTab = state.activeQualityTab;
-                const tabName = target.getAttribute("data-tab");
-                state.activeQualityTab = tabName;
-                GM_setValue("activeQualityTab", tabName);
-                Utils.queryAll(".quality-tab", panel).forEach(tab =>
-                    tab.classList.toggle("active", tab.getAttribute("data-tab") === tabName)
-                );
-                const tabs = panel.querySelector('.quality-tabs');
-                if (tabs) tabs.setAttribute('data-active', tabName);
-                // 切换可见的画质区域
-                Utils.queryAll(".quality-section", panel).forEach(section =>
-                    section.classList.toggle("active", section.getAttribute("data-section") === tabName)
-                );
-                // 切换后同步状态与高亮
-                updateQualityButtons(panel);
-            } else if (target.classList.contains("quality-button") && !state.isLoading) {
-                const section = target.closest(".quality-section");
-                const quality = target.getAttribute("data-quality");
-                if (section.getAttribute("data-section") === "primary") {
-                    state.userQualitySetting = quality;
-                    GM_setValue("qualitySetting", quality);
-                } else {
-                    state.userBackupQualitySetting = quality;
-                    GM_setValue("backupQualitySetting", quality);
-                    const fallbackContainer = Utils.query("#highest-quality-fallback-container", panel);
-                    if (fallbackContainer) {
-                        fallbackContainer.classList.toggle("show", quality !== "最高画质");
-                        fallbackContainer.classList.toggle("hide", quality === "最高画质");
-                    }
-                }
+            const btn = e.target.closest(".quality-button");
+            if (btn && !state.customSortEnabled && !state.isLoading) {
+                const quality = btn.getAttribute("data-quality");
+                state.userQualitySetting = quality;
+                GM_setValue("qualitySetting", quality);
                 updateQualityButtons(panel);
                 selectQualityBasedOnSetting();
             }
+        });
+        panel.querySelector("#custom-sort").addEventListener("change", function (e) {
+            if (state.isLoading) return;
+            state.customSortEnabled = e.target.checked;
+            GM_setValue("customSortEnabled", state.customSortEnabled);
+            renderGrid();
+            updateQualityButtons(panel);
+            selectQualityBasedOnSetting();
         });
         panel.querySelector("#highest-quality-fallback").addEventListener("change", function (e) {
             if (!state.isLoading) {
@@ -1236,7 +1340,225 @@
             }
         });
         document.body.appendChild(panel);
+        setupCustomGridDrag(panel);
         updateQualityButtons(panel);
+    }
+    function refreshCustomGridDecorations(panel) {
+        const grid = panel.querySelector("#quality-grid");
+        if (!grid) return;
+        const items = Utils.queryAll(".cq-grid-item", grid);
+        const cutoff = customEffectiveCutoff(items.map(it => it.getAttribute("data-quality")));
+        items.forEach((it, i) => {
+            const rank = it.querySelector(".cq-rank");
+            if (rank) rank.textContent = String(i + 1);
+            it.classList.toggle("cq-dimmed", cutoff !== -1 && i > cutoff);
+            it.classList.toggle("cq-fallback", it.getAttribute("data-quality") === CUSTOM_HIGHEST);
+        });
+    }
+    function setupCustomGridDrag(panel) {
+        const grid = panel.querySelector("#quality-grid");
+        if (!grid || grid.dataset.dragBound === "1") return;
+        grid.dataset.dragBound = "1";
+
+        const LONG_PRESS_MS = 260;
+        const MOVE_CANCEL_PX = 10;
+        const EDGE = 48;
+        const SCROLL_SPEED = 14;
+
+        let pressTimer = null;
+        let pressEl = null;
+        let activePointerId = null;
+        let activated = false;
+        let committed = false;
+        let dragging = null;
+        let items = [];          // 拖拽开始时的顺序
+        let slots = [];          // 各格子的中心坐标
+        let startIndex = -1;
+        let currentIndex = -1;
+        let pointerStartClientX = 0;
+        let pointerStartClientY = 0;
+        let lastClientX = 0;
+        let lastClientY = 0;
+        let moveRAF = null;
+        let autoScrollRAF = null;
+
+        function clearPress() {
+            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+            if (pressEl) { pressEl.classList.remove("cq-press"); pressEl = null; }
+        }
+        function captureSlots() {
+            const gridRect = grid.getBoundingClientRect();
+            slots = items.map(it => {
+                const r = it.getBoundingClientRect();
+                return { x: r.left - gridRect.left + r.width / 2, y: r.top - gridRect.top + r.height / 2 };
+            });
+        }
+        function pointerRel() {
+            const gridRect = grid.getBoundingClientRect();
+            return { x: lastClientX - gridRect.left, y: lastClientY - gridRect.top };
+        }
+        function nearestIndex(p) {
+            let best = 0, bestD = Infinity;
+            for (let i = 0; i < slots.length; i++) {
+                const dx = slots[i].x - p.x, dy = slots[i].y - p.y;
+                const d = dx * dx + dy * dy;
+                if (d < bestD) { bestD = d; best = i; }
+            }
+            return best;
+        }
+        function workingOrder() {
+            const arr = items.slice();
+            arr.splice(startIndex, 1);
+            arr.splice(currentIndex, 0, dragging);
+            return arr;
+        }
+        function applyLayout() {
+            const order = workingOrder();
+            const cutoff = customEffectiveCutoff(order.map(it => it.getAttribute("data-quality")));
+            order.forEach((it, newIdx) => {
+                const oldIdx = items.indexOf(it);
+                const rank = it.querySelector(".cq-rank");
+                if (rank) rank.textContent = String(newIdx + 1);
+                if (it === dragging) return;
+                it.classList.toggle("cq-dimmed", cutoff !== -1 && newIdx > cutoff);
+                const dx = slots[newIdx].x - slots[oldIdx].x;
+                const dy = slots[newIdx].y - slots[oldIdx].y;
+                it.style.transform = `translate(${dx}px, ${dy}px)`;
+            });
+        }
+        function updateDrag() {
+            moveRAF = null;
+            if (!activated || !dragging) return;
+            const p = pointerRel();
+            const dx = p.x - slots[startIndex].x;
+            const dy = p.y - slots[startIndex].y;
+            dragging.style.transform = `translate(${dx}px, ${dy}px) scale(1.06)`;
+            const idx = nearestIndex(p);
+            if (idx !== currentIndex) {
+                currentIndex = idx;
+                applyLayout();
+            }
+        }
+        function stopAutoScroll() {
+            if (autoScrollRAF) { cancelAnimationFrame(autoScrollRAF); autoScrollRAF = null; }
+        }
+        function handleAutoScroll() {
+            const rect = panel.getBoundingClientRect();
+            let dir = 0;
+            if (lastClientY < rect.top + EDGE) dir = -1;
+            else if (lastClientY > rect.bottom - EDGE) dir = 1;
+            if (dir === 0) { stopAutoScroll(); return; }
+            if (autoScrollRAF) return;
+            const tick = () => {
+                if (!activated) { stopAutoScroll(); return; }
+                const before = panel.scrollTop;
+                panel.scrollTop += dir * SCROLL_SPEED;
+                if (panel.scrollTop !== before) updateDrag();
+                autoScrollRAF = requestAnimationFrame(tick);
+            };
+            autoScrollRAF = requestAnimationFrame(tick);
+        }
+        function activateDrag(item) {
+            activated = true;
+            committed = false;
+            dragging = item;
+            items = Utils.queryAll(".cq-grid-item", grid);
+            startIndex = items.indexOf(item);
+            currentIndex = startIndex;
+            captureSlots();
+            grid.classList.add("cq-dragging");
+            item.classList.remove("cq-press");
+            item.classList.add("dragging");
+            items.forEach(it => { it.style.transform = ""; });
+        }
+        function commitOrder() {
+            if (committed) return;
+            committed = true;
+            const order = workingOrder();
+            order.forEach(n => {
+                n.style.transition = "none";
+                n.style.transform = "";
+                grid.appendChild(n);
+            });
+            // 先强制回流再恢复过渡，不然会闪
+            void grid.offsetHeight;
+            order.forEach(n => { n.style.transition = ""; });
+            grid.classList.remove("cq-dragging");
+            dragging = null;
+            activated = false;
+            const newOrder = order.map(n => n.getAttribute("data-quality"));
+            saveCustomOrder(newOrder);
+            refreshCustomGridDecorations(panel);
+            selectQualityBasedOnSetting();
+        }
+        function finishDrag() {
+            stopAutoScroll();
+            if (moveRAF) { cancelAnimationFrame(moveRAF); moveRAF = null; }
+            if (!dragging) { activated = false; grid.classList.remove("cq-dragging"); return; }
+            const item = dragging;
+            const dx = slots[currentIndex].x - slots[startIndex].x;
+            const dy = slots[currentIndex].y - slots[startIndex].y;
+            item.classList.remove("dragging");
+            requestAnimationFrame(() => {
+                item.style.transform = `translate(${dx}px, ${dy}px)`;
+            });
+            let done = false;
+            const onEnd = (ev) => {
+                if (ev && ev.propertyName && ev.propertyName !== "transform") return;
+                if (done) return;
+                done = true;
+                item.removeEventListener("transitionend", onEnd);
+                commitOrder();
+            };
+            item.addEventListener("transitionend", onEnd);
+            setTimeout(onEnd, 300);
+        }
+        function onPointerDown(e) {
+            if (!state.customSortEnabled || state.isLoading) return;
+            if (e.pointerType === "mouse" && e.button !== 0) return;
+            if (activated || pressTimer || activePointerId !== null) return;
+            const item = e.target.closest(".cq-grid-item");
+            if (!item || !grid.contains(item)) return;
+            pressEl = item;
+            activePointerId = e.pointerId;
+            pointerStartClientX = e.clientX;
+            pointerStartClientY = e.clientY;
+            lastClientX = e.clientX;
+            lastClientY = e.clientY;
+            item.classList.add("cq-press");
+            pressTimer = setTimeout(() => {
+                pressTimer = null;
+                try { grid.setPointerCapture(activePointerId); } catch (err) {}
+                activateDrag(item);
+            }, LONG_PRESS_MS);
+        }
+        function onPointerMove(e) {
+            if (e.pointerId !== activePointerId) return;
+            if (!activated) {
+                if (pressTimer && (Math.abs(e.clientY - pointerStartClientY) > MOVE_CANCEL_PX || Math.abs(e.clientX - pointerStartClientX) > MOVE_CANCEL_PX)) {
+                    clearPress();
+                }
+                return;
+            }
+            e.preventDefault();
+            lastClientX = e.clientX;
+            lastClientY = e.clientY;
+            if (!moveRAF) moveRAF = requestAnimationFrame(updateDrag);
+            handleAutoScroll();
+        }
+        function onPointerUp(e) {
+            if (e.pointerId !== activePointerId) return;
+            clearPress();
+            try { grid.releasePointerCapture(activePointerId); } catch (err) {}
+            activePointerId = null;
+            if (activated) finishDrag();
+        }
+        grid.addEventListener("pointerdown", onPointerDown);
+        grid.addEventListener("pointermove", onPointerMove);
+        grid.addEventListener("pointerup", onPointerUp);
+        grid.addEventListener("pointercancel", onPointerUp);
+        grid.addEventListener("dragstart", (e) => e.preventDefault());
+        grid.addEventListener("contextmenu", (e) => { if (activated || pressTimer) e.preventDefault(); });
     }
     function selectQualityBasedOnSetting() {
         if (state.isLivePage) {
@@ -1437,7 +1759,48 @@
             CLEAN_KEYWORDS.forEach(k => { result = result.replace(new RegExp(k, 'g'), ''); });
             return result.trim();
         }
-        if (state.userQualitySetting === "最高画质") {
+        const allowFreeVipForNonVipBase = state.devModeEnabled && state.devAllowFreeVipQualities;
+        const isUsableQuality = (q) => state.isVipUser ? true : (allowFreeVipForNonVipBase ? (!q.isVipOnly || q.isFreeNow) : (!q.isVipOnly && !q.isFreeNow));
+        let customUsedFallback = false;
+        if (state.customSortEnabled) {
+            const order = normalizeCustomOrder(state.customQualityOrder);
+            const cutoff = order.indexOf(CUSTOM_HIGHEST);
+            const prefs = cutoff === -1 ? order : order.slice(0, cutoff);
+            let useDefault = false;
+            for (const pref of prefs) {
+                if (pref === CUSTOM_DEFAULT) {
+                    useDefault = true;
+                    break;
+                }
+                const match = availableQualities.find(q => isUsableQuality(q) && cleanQuality(q.name).includes(pref));
+                if (match) { targetQuality = match; break; }
+            }
+            if (useDefault) {
+                console.log("[画质设置] 自定义顺序命中“默认”，使用默认画质");
+                state.qualitySetSuccessfully = true;
+                await setAudioQuality();
+                return;
+            }
+            if (!targetQuality && cutoff !== -1) {
+                const ordered = state.isVipUser ? availableQualities : [...availableQualities].sort((a, b) => {
+                    function gi(name) {
+                        for (let i = 0; i < qualityPreferences.length; i++) {
+                            if (name.includes(qualityPreferences[i])) return i;
+                        }
+                        return qualityPreferences.length;
+                    }
+                    return gi(a.name) - gi(b.name);
+                });
+                targetQuality = ordered.find(isUsableQuality) || null;
+                customUsedFallback = true;
+            }
+            if (!targetQuality) {
+                console.log("[画质设置] 自定义顺序未匹配到可用画质，保持当前画质");
+                await setAudioQuality();
+                return;
+            }
+            console.log("[画质设置] 自定义模式目标画质: " + targetQuality.name + (customUsedFallback ? "（兜底最高画质）" : ""));
+        } else if (state.userQualitySetting === "最高画质") {
             const hasFreeVip = availableQualities.some(q => q.isFreeNow);
             const allowFreeVipForNonVip = state.devModeEnabled && state.devAllowFreeVipQualities;
             if (state.isVipUser) {
@@ -1455,14 +1818,12 @@
                     }
                     return getQualityIndex(a.name) - getQualityIndex(b.name);
                 });
-                const filteredForNonVip = state.isVipUser ? availableQualities : availableQualities.filter(q => !q.isVipOnly && !q.isFreeNow);
-                targetQuality = filteredForNonVip.find(q => cleanQuality(q.name).includes(state.userBackupQualitySetting));
                 if (!targetQuality && state.useHighestQualityFallback)
                     targetQuality = (state.isVipUser || allowFreeVipForNonVip)
                         ? availableQualities.find(q => !q.isVipOnly || q.isFreeNow)
                         : availableQualities.find(q => !q.isVipOnly && !q.isFreeNow);
                 if (!targetQuality && !state.useHighestQualityFallback) {
-                    console.log("[画质设置] 未找到备选画质，保持当前画质");
+                    console.log("[画质设置] 未找到可用画质，保持当前画质");
                     await setAudioQuality();
                     return;
                 }
@@ -1475,8 +1836,7 @@
         } else {
             targetQuality = availableQualities.find(q => cleanQuality(q.name).includes(state.userQualitySetting));
             if (!targetQuality) {
-                console.log("[画质设置] 未找到目标画质 " + state.userQualitySetting + ", 尝试使用备选画质");
-                targetQuality = availableQualities.find(q => cleanQuality(q.name).includes(state.userBackupQualitySetting));
+                console.log("[画质设置] 未找到目标画质 " + state.userQualitySetting);
                 if (!targetQuality && state.useHighestQualityFallback) {
                     const allowFreeVipForNonVip = state.devModeEnabled && state.devAllowFreeVipQualities;
                     targetQuality = state.isVipUser
@@ -1486,7 +1846,7 @@
                             : availableQualities.find(q => !q.isVipOnly && !q.isFreeNow));
                 }
                 if (!targetQuality && !state.useHighestQualityFallback) {
-                    console.log("[画质设置] 未找到备选画质，保持当前画质");
+                    console.log("[画质设置] 未找到可用画质，保持当前画质");
                     await setAudioQuality();
                     return;
                 }
@@ -1495,7 +1855,7 @@
         console.log("[画质设置] 实际目标画质: " + targetQuality.name);
         
         // 避免将更高画质切换到更低画质
-        if (state.userQualitySetting === "最高画质") {
+        if (customUsedFallback || (!state.customSortEnabled && state.userQualitySetting === "最高画质")) {
             const currentQualityItem = availableQualities.find(q => cleanQuality(q.name) === cleanQuality(currentQuality));
             const currentQualityIndex = currentQualityItem ? availableQualities.indexOf(currentQualityItem) : -1;
             const targetQualityIndex = availableQualities.indexOf(targetQuality);
@@ -1525,7 +1885,7 @@
                 if (currentQualityAfterSwitch && cleanQuality(currentQualityAfterSwitch) !== cleanQuality(targetQualityNameClean)) {
                     console.log("[画质设置] 画质切换未成功，执行二次切换...");
                     // 重新打开清晰度菜单并重新定位目标项，避免旧元素失效
-                    const qualityButton = document.querySelector('.bpx-player-ctrl-btn.bpx-player-ctrl-quality');
+                    const qualityButton = document.querySelector('.bpx-player-ctrl-btn.bpx-player-ctrl-quality:not(.auto-quality-injected)');
                     if (qualityButton) {
                         qualityButton.click();
                         await Utils.delay(80);
@@ -1551,6 +1911,113 @@
         }
 
         await setAudioQuality();
+    }
+    function getNumberMirror() {
+        let m = document.getElementById("aq-num-mirror");
+        if (!m) {
+            m = document.createElement("span");
+            m.id = "aq-num-mirror";
+            m.style.cssText = "position:absolute;left:-9999px;top:-9999px;visibility:hidden;white-space:pre;pointer-events:none;";
+            document.body.appendChild(m);
+        }
+        return m;
+    }
+    function setupSteppers(panel) {
+        Utils.queryAll(".num-stepper", panel).forEach(stepper => {
+            if (stepper.dataset.stepperBound === "1") return;
+            stepper.dataset.stepperBound = "1";
+            const input = stepper.querySelector('input[type="number"]');
+            const dec = stepper.querySelector(".ns-dec");
+            const inc = stepper.querySelector(".ns-inc");
+            if (!input || !dec || !inc) return;
+            const step = parseFloat(input.step) || 1;
+            const min = input.min !== "" ? parseFloat(input.min) : -Infinity;
+            const max = input.max !== "" ? parseFloat(input.max) : Infinity;
+            function clampSnap(v) {
+                if (isNaN(v)) v = (min !== -Infinity ? min : 0);
+                if (min !== -Infinity) v = Math.round((v - min) / step) * step + min;
+                v = Math.min(max, Math.max(min, v));
+                return Math.round(v * 1000) / 1000;
+            }
+            function fitWidth() {
+                // 用镜像量出真实宽度，免得数字被裁
+                const cs = getComputedStyle(input);
+                const m = getNumberMirror();
+                m.style.fontSize = cs.fontSize;
+                m.style.fontFamily = cs.fontFamily;
+                m.style.fontWeight = cs.fontWeight;
+                m.style.letterSpacing = cs.letterSpacing;
+                m.textContent = input.value === "" ? "0" : input.value;
+                input.style.width = Math.max(12, m.offsetWidth + 2) + "px";
+            }
+            function refreshButtons() {
+                const v = parseFloat(input.value);
+                const cur = isNaN(v) ? null : clampSnap(v);
+                dec.disabled = cur !== null && cur <= min;
+                inc.disabled = cur !== null && cur >= max;
+            }
+            function applyDelta(dir) {
+                if (input.disabled) return;
+                let v = parseFloat(input.value);
+                if (isNaN(v)) v = (min !== -Infinity ? min : 0);
+                v = clampSnap(v + dir * step);
+                if (String(v) !== input.value) {
+                    input.value = String(v);
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                    fitWidth();
+                }
+                refreshButtons();
+            }
+            // 长按连续步进，松手时只提交一次
+            function bindHold(btn, dir) {
+                let delayTimer = null, repeatTimer = null, held = false;
+                function stop() {
+                    if (delayTimer) { clearTimeout(delayTimer); delayTimer = null; }
+                    if (repeatTimer) { clearInterval(repeatTimer); repeatTimer = null; }
+                    if (held) { held = false; input.dispatchEvent(new Event("change", { bubbles: true })); }
+                }
+                btn.addEventListener("pointerdown", function (e) {
+                    if (e.button != null && e.button !== 0) return;
+                    if (btn.disabled || input.disabled) return;
+                    e.preventDefault();
+                    held = true;
+                    applyDelta(dir);
+                    try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+                    delayTimer = setTimeout(function () {
+                        repeatTimer = setInterval(function () {
+                            if (btn.disabled || input.disabled) { stop(); return; }
+                            applyDelta(dir);
+                        }, 90);
+                    }, 350);
+                });
+                ["pointerup", "pointercancel", "lostpointercapture"].forEach(ev => btn.addEventListener(ev, stop));
+                // 键盘触发的 click，detail 是 0
+                btn.addEventListener("click", function (e) {
+                    if (e.detail === 0 && !btn.disabled && !input.disabled) {
+                        applyDelta(dir);
+                        input.dispatchEvent(new Event("change", { bubbles: true }));
+                    }
+                });
+            }
+            bindHold(dec, -1);
+            bindHold(inc, 1);
+            input.addEventListener("input", function () { fitWidth(); refreshButtons(); });
+            // 失焦时把越界值夹回来再保存
+            input.addEventListener("change", function () {
+                if (!input.disabled) {
+                    const raw = parseFloat(input.value);
+                    const snapped = clampSnap(isNaN(raw) ? (min !== -Infinity ? min : 0) : raw);
+                    if (String(snapped) !== input.value) {
+                        input.value = String(snapped);
+                        input.dispatchEvent(new Event("input", { bubbles: true }));
+                    }
+                }
+                fitWidth();
+                refreshButtons();
+            });
+            fitWidth();
+            refreshButtons();
+        });
     }
     function createLiveSettingsPanel() {
         const panel = document.createElement("div");
@@ -1608,8 +2075,14 @@
                 轮询间隔
                 <div class="description">检查并切换画质的间隔时间</div>
               </label>
-              <input type="number" id="live-polling-interval" value="${state.livePollingInterval}" min="5" max="3600" step="1" ${!state.liveQualityPollingEnabled ? 'disabled' : ''}>
-              <span class="unit">秒</span>
+              <div class="num-stepper">
+                <button class="ns-btn ns-dec" type="button" aria-label="减少">−</button>
+                <div class="ns-field">
+                  <input type="number" id="live-polling-interval" value="${state.livePollingInterval}" min="5" max="3600" step="1" ${!state.liveQualityPollingEnabled ? 'disabled' : ''}>
+                  <span class="unit">秒</span>
+                </div>
+                <button class="ns-btn ns-inc" type="button" aria-label="增加">+</button>
+              </div>
             </div>
             <div class="quality-section-title">页面保活<span class="beta-tag">BETA</span></div>
             <div class="toggle-switch">
@@ -1627,8 +2100,14 @@
                 保活间隔
                 <div class="description">模拟鼠标移动的间隔时间</div>
               </label>
-              <input type="number" id="live-keepalive-interval" value="${state.liveKeepAliveInterval}" min="1" max="1440" step="1" ${!state.liveKeepAliveEnabled ? 'disabled' : ''}>
-              <span class="unit">分钟</span>
+              <div class="num-stepper">
+                <button class="ns-btn ns-dec" type="button" aria-label="减少">−</button>
+                <div class="ns-field">
+                  <input type="number" id="live-keepalive-interval" value="${state.liveKeepAliveInterval}" min="1" max="1440" step="1" ${!state.liveKeepAliveEnabled ? 'disabled' : ''}>
+                  <span class="unit">分钟</span>
+                </div>
+                <button class="ns-btn ns-inc" type="button" aria-label="增加">+</button>
+              </div>
             </div>
           `;
             panel.querySelectorAll(".live-quality-button").forEach(button => {
@@ -1713,6 +2192,7 @@
                     GM_setValue("liveAutoRecoverOnVisible", state.liveAutoRecoverOnVisible);
                 });
             }
+            setupSteppers(panel);
         }
         document.body.appendChild(panel);
         panel.updatePanel = updatePanel;
@@ -1738,6 +2218,7 @@
     async function selectLiveQuality() {
         const taskId = taskQueue.currentTaskId;
         const readyResult = await new Promise(resolve => {
+            let attempts = 0;
             const timer = setInterval(() => {
                 if (taskQueue.isTaskCancelled(taskId)) {
                     clearInterval(timer);
@@ -1752,11 +2233,18 @@
                 ) {
                     clearInterval(timer);
                     resolve("ready");
+                    return;
+                }
+                if (++attempts >= 30) {
+                    clearInterval(timer);
+                    resolve("timeout");
                 }
             }, 1000);
         });
-        if (readyResult === "cancelled") {
-            console.log("[直播画质] 任务已取消，停止后续操作");
+        if (readyResult !== "ready") {
+            console.log(readyResult === "cancelled"
+                ? "[直播画质] 任务已取消，停止后续操作"
+                : "[直播画质] 等待播放器就绪超时，停止后续操作");
             return;
         }
         const qualityCandidates = unsafeWindow.livePlayer.getPlayerInfo().qualityCandidates;
@@ -1916,15 +2404,18 @@
               <span class="slider"></span>
             </label>
           </div>
-          <div class="quality-section-title">解码策略</div>
-          <div class="quality-group">
-            ${OPTIONS.map(o => `<button class="quality-button ${(state.isLivePage ? state.userLiveDecodeSetting : state.userVideoDecodeSetting) === o ? 'active' : ''}" data-decode="${o}">${o}</button>`).join('')}
+          <div class="decode-strategy${state.decodeSettingEnabled ? '' : ' disabled'}" id="decode-strategy">
+            <div class="quality-group">
+              ${OPTIONS.map(o => `<button class="quality-button ${(state.isLivePage ? state.userLiveDecodeSetting : state.userVideoDecodeSetting) === o ? 'active' : ''}" data-decode="${o}">${o}</button>`).join('')}
+            </div>
           </div>
         `;
         panel.querySelector("#decode-setting-enabled").addEventListener("change", function (e) {
             state.decodeSettingEnabled = e.target.checked;
             GM_setValue("decodeSettingEnabled", state.decodeSettingEnabled);
             console.log(`[解码设置] 解码设置已${state.decodeSettingEnabled ? '启用' : '关闭'}`);
+            const strategy = panel.querySelector("#decode-strategy");
+            if (strategy) strategy.classList.toggle("disabled", !state.decodeSettingEnabled);
             if (state.decodeSettingEnabled) {
                 applyDecodeSetting();
             }
@@ -1956,6 +2447,8 @@
         if (enableSwitch) {
             enableSwitch.checked = state.decodeSettingEnabled;
         }
+        const strategy = panel.querySelector('#decode-strategy');
+        if (strategy) strategy.classList.toggle('disabled', !state.decodeSettingEnabled);
         Utils.queryAll('.quality-button', panel).forEach(btn => {
             const wanted = state.isLivePage ? state.userLiveDecodeSetting : state.userVideoDecodeSetting;
             btn.classList.toggle('active', btn.getAttribute('data-decode') === (wanted || '默认'));
@@ -2197,29 +2690,48 @@
               二次验证等待时间
               <div class="description">画质切换后等待验证的时间</div>
             </label>
-            <input type="number" id="dev-double-check-delay" value="${state.devDoubleCheckDelay}" min="0" max="20000" step="100" ${!state.devModeEnabled ? 'disabled' : ''}>
-            <span class="unit">毫秒</span>
+            <div class="num-stepper">
+              <button class="ns-btn ns-dec" type="button" aria-label="减少">−</button>
+              <div class="ns-field">
+                <input type="number" id="dev-double-check-delay" value="${state.devDoubleCheckDelay}" min="0" max="20000" step="100" ${!state.devModeEnabled ? 'disabled' : ''}>
+                <span class="unit">毫秒</span>
+              </div>
+              <button class="ns-btn ns-inc" type="button" aria-label="增加">+</button>
+            </div>
           </div>
           <div class="input-group ${!state.devModeEnabled ? 'disabled' : ''}">
             <label for="dev-audio-delay">
               音质切换初始延迟
               <div class="description">音质切换重试的初始等待时间，后续等待时间将以此为基数进行指数退避</div>
             </label>
-            <input type="number" id="dev-audio-delay" value="${state.devModeAudioDelay}" min="0" max="10000" step="100" ${!state.devModeEnabled ? 'disabled' : ''}>
-            <span class="unit">毫秒</span>
+            <div class="num-stepper">
+              <button class="ns-btn ns-dec" type="button" aria-label="减少">−</button>
+              <div class="ns-field">
+                <input type="number" id="dev-audio-delay" value="${state.devModeAudioDelay}" min="0" max="10000" step="100" ${!state.devModeEnabled ? 'disabled' : ''}>
+                <span class="unit">毫秒</span>
+              </div>
+              <button class="ns-btn ns-inc" type="button" aria-label="增加">+</button>
+            </div>
           </div>
           <div class="input-group ${!state.devModeEnabled ? 'disabled' : ''}">
             <label for="dev-audio-retries">
               音质切换重试次数
               <div class="description">音质切换失败后的重试次数</div>
             </label>
-            <input type="number" id="dev-audio-retries" value="${state.devModeAudioRetries}" min="0" max="5" step="1" ${!state.devModeEnabled ? 'disabled' : ''}>
-            <span class="unit" style="margin-left: 15px;">次</span>
+            <div class="num-stepper">
+              <button class="ns-btn ns-dec" type="button" aria-label="减少">−</button>
+              <div class="ns-field">
+                <input type="number" id="dev-audio-retries" value="${state.devModeAudioRetries}" min="0" max="5" step="1" ${!state.devModeEnabled ? 'disabled' : ''}>
+                <span class="unit">次</span>
+              </div>
+              <button class="ns-btn ns-inc" type="button" aria-label="增加">+</button>
+            </div>
           </div>
           <div id="dev-warning" class="warning" style="display: none;"></div>
           <button class="refresh-button">确认并刷新页面</button>
         `;
         document.body.appendChild(panel);
+        setupSteppers(panel);
         panel.querySelector('#dev-mode').addEventListener('change', function (e) {
             setSetting("devModeEnabled", "devModeEnabled", e.target.checked);
             setDevPanelEnabled(panel, state.devModeEnabled);
@@ -2301,9 +2813,16 @@
         // 打开时按需挂载到当前全屏根，避免全屏下不可见
         const root = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || document.body;
         if (panel && panel.parentElement !== root) root.appendChild(panel);
+        // 起点在面板里就不关，避免拖拽合成的外部 mousedown 误关
+        let pressStartedInside = false;
+        function handlePointerDownOrigin(event) {
+            pressStartedInside = !!(panel && panel.contains(event.target));
+        }
         function handleOutsideClick(event) {
+            if (pressStartedInside) return;
             if (panel && !panel.contains(event.target)) {
                 panel.classList.remove("show");
+                document.removeEventListener("pointerdown", handlePointerDownOrigin, true);
                 document.removeEventListener("mousedown", handleOutsideClick);
             }
         }
@@ -2315,9 +2834,11 @@
                 }
             });
             panel.classList.add("show");
+            document.addEventListener("pointerdown", handlePointerDownOrigin, true);
             document.addEventListener("mousedown", handleOutsideClick);
         } else {
             panel.classList.remove("show");
+            document.removeEventListener("pointerdown", handlePointerDownOrigin, true);
             document.removeEventListener("mousedown", handleOutsideClick);
         }
         if (updateFunc) updateFunc(panel);
@@ -2349,7 +2870,7 @@
 
     // 注入设置按钮相关操作
     function ensureQualitySettingsButton(shouldInject) {
-        const qualityControl = document.querySelector('.bpx-player-ctrl-quality');
+        const qualityControl = document.querySelector('.bpx-player-ctrl-quality:not(.auto-quality-injected)');
         if (!qualityControl) return;
         const parent = qualityControl.parentElement;
         if (!parent) return;
@@ -2391,8 +2912,8 @@
         } else {
             const DOM = {
                 selectors: {
-                    qualityControl: '.bpx-player-ctrl-quality',
-                    qualityButton: '.bpx-player-ctrl-btn.bpx-player-ctrl-quality',
+                    qualityControl: '.bpx-player-ctrl-quality:not(.auto-quality-injected)',
+                    qualityButton: '.bpx-player-ctrl-btn.bpx-player-ctrl-quality:not(.auto-quality-injected)',
                     playerControls: '.bpx-player-control-wrap',
                     headerAvatar: '.v-popover-wrap.header-avatar-wrap',
                     vipIcon: '.bili-avatar-icon.bili-avatar-right-icon.bili-avatar-icon-big-vip',
@@ -2514,6 +3035,7 @@
             });
 
             vipCheckObserver.observe(document.body, { childList: true, subtree: true });
+            setTimeout(() => vipCheckObserver.disconnect(), 20000);
 
             window.addEventListener('popstate', () => { DOM.clear(); });
             window.addEventListener('beforeunload', () => { DOM.clear(); });
@@ -2550,7 +3072,7 @@
             if (state.qualitySetSuccessfully) return;
 
             const taskId = taskQueue.generateTaskId();
-            state.isLoading = true;
+            state.isLoading = !state.vipStatusChecked;
 
             await waitForPlayerWithBackoff(async () => {
                 if (taskQueue.isTaskCancelled(taskId) || state.qualitySetSuccessfully) return;
@@ -2706,7 +3228,8 @@
         console.log(`[URL变更] 开始新任务 #${taskId}, URL: ${newUrl}`);
 
         taskQueue.clearPreviousTasks();
-        state.isLoading = true;
+        // 会员状态已知时不再进入加载锁定，避免连播切换时面板闪烁“加载中”
+        state.isLoading = !state.vipStatusChecked;
         state.qualitySetSuccessfully = false;
 
         const panel = document.getElementById("bilibili-quality-selector");
