@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      6.1-Beta
+// @version      6.2-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -108,6 +108,7 @@
         liveKeepAliveTimerId: null,
         qualitySetSuccessfully: false,
         autoWidescreen: GM_getValue("autoWidescreen", false),
+        liveDanmakuSync: GM_getValue("liveDanmakuSync", false),
         sessionCache: {
             vipStatus: null,
             vipChecked: false
@@ -2076,6 +2077,16 @@
                 <span class="slider"></span>
               </label>
             </div>
+            <div class="toggle-switch">
+              <label for="live-danmaku-sync">
+                切回前台时刷新弹幕
+                <div class="description">自动开关弹幕以同步弹幕状态</div>
+              </label>
+              <label class="switch">
+                <input type="checkbox" id="live-danmaku-sync" ${state.liveDanmakuSync ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
             <div class="quality-section-title">画质锁定<span class="beta-tag">BETA</span></div>
             <div class="toggle-switch">
               <label for="live-quality-polling">
@@ -2207,6 +2218,13 @@
                 liveAutoRecoverSwitch.addEventListener("change", function (e) {
                     state.liveAutoRecoverOnVisible = e.target.checked;
                     GM_setValue("liveAutoRecoverOnVisible", state.liveAutoRecoverOnVisible);
+                });
+            }
+            const liveDanmakuSyncSwitch = panel.querySelector("#live-danmaku-sync");
+            if (liveDanmakuSyncSwitch) {
+                liveDanmakuSyncSwitch.addEventListener("change", function (e) {
+                    state.liveDanmakuSync = e.target.checked;
+                    GM_setValue("liveDanmakuSync", state.liveDanmakuSync);
                 });
             }
             setupSteppers(panel);
@@ -2916,6 +2934,26 @@
         }, 15000);
     }
 
+    let _danmakuSyncing = false;
+    function syncLiveDanmaku() {
+        if (_danmakuSyncing) return;
+        try {
+            const lp = unsafeWindow.livePlayer;
+            if (!lp?.getPlayerInfo || !lp?.updateDMSetting) return;
+            if (!lp.getPlayerInfo()?.danmaku?.display) return;
+            _danmakuSyncing = true;
+            lp.updateDMSetting({ display: false });
+            setTimeout(() => {
+                try { lp.updateDMSetting({ display: true }); } catch (e) {}
+                _danmakuSyncing = false;
+                console.log("[弹幕同步] 已刷新直播弹幕");
+            }, 500);
+        } catch (e) {
+            _danmakuSyncing = false;
+            console.warn("[弹幕同步] 执行失败:", e);
+        }
+    }
+
     // 注入设置按钮相关操作
     function ensureQualitySettingsButton(shouldInject) {
         const qualityControl = document.querySelector('.bpx-player-ctrl-quality:not(.auto-quality-injected)');
@@ -3091,6 +3129,12 @@
         }
     }
     window.addEventListener("DOMContentLoaded", initPlayerScripts, { once: true });
+
+    let _hadBlur = false;
+    window.addEventListener("blur", () => { _hadBlur = true; });
+    window.addEventListener("focus", () => {
+        if (_hadBlur && state.liveDanmakuSync && state.isLivePage) syncLiveDanmaku();
+    });
 
     // 后台标签页切回前台时的画质补救
     document.addEventListener("visibilitychange", () => {
