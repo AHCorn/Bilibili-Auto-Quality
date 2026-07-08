@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      6.0.1-Beta
+// @version      6.1-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -107,6 +107,7 @@
         liveKeepAliveInterval: GM_getValue("liveKeepAliveInterval", 60),
         liveKeepAliveTimerId: null,
         qualitySetSuccessfully: false,
+        autoWidescreen: GM_getValue("autoWidescreen", false),
         sessionCache: {
             vipStatus: null,
             vipChecked: false
@@ -1207,6 +1208,8 @@
         if (dolbyAtmosSwitch) dolbyAtmosSwitch.checked = state.dolbyAtmosEnabled;
         const fallbackCheckbox = panel.querySelector("#highest-quality-fallback");
         if (fallbackCheckbox) fallbackCheckbox.checked = state.useHighestQualityFallback;
+        const autoWidescreenCheckbox = panel.querySelector("#auto-widescreen");
+        if (autoWidescreenCheckbox) autoWidescreenCheckbox.checked = state.autoWidescreen;
         updateWarnings(panel);
     }
     function createSettingsPanel() {
@@ -1290,6 +1293,13 @@
               <span class="slider"></span>
             </label>
           </div>
+          <div class="toggle-switch">
+            <label for="auto-widescreen">自动宽屏</label>
+            <label class="switch">
+              <input type="checkbox" id="auto-widescreen" ${state.autoWidescreen ? 'checked' : ''}>
+              <span class="slider"></span>
+            </label>
+          </div>
         `;
         panel.addEventListener("click", function (e) {
             const btn = e.target.closest(".quality-button");
@@ -1337,6 +1347,13 @@
                 state.injectQualityButton = e.target.checked;
                 GM_setValue("injectQualityButton", state.injectQualityButton);
                 ensureQualitySettingsButton(state.injectQualityButton);
+            }
+        });
+        panel.querySelector("#auto-widescreen").addEventListener("change", function (e) {
+            if (!state.isLoading) {
+                state.autoWidescreen = e.target.checked;
+                GM_setValue("autoWidescreen", state.autoWidescreen);
+                if (state.autoWidescreen) applyAutoWidescreen();
             }
         });
         document.body.appendChild(panel);
@@ -2868,6 +2885,37 @@
         togglePanel("bilibili-unlock-settings", createUnlockSettingsPanel);
     }
 
+    let _wsObserver = null;
+    let _wsTimeout = null;
+    function applyAutoWidescreen() {
+        if (_wsObserver) { _wsObserver.disconnect(); _wsObserver = null; }
+        if (_wsTimeout) { clearTimeout(_wsTimeout); _wsTimeout = null; }
+        if (!state.autoWidescreen || state.isLivePage) return;
+        function clickWide() {
+            const btn = document.querySelector('.bpx-player-ctrl-wide');
+            if (!btn) return false;
+            const enter = btn.querySelector('.bpx-player-ctrl-wide-enter');
+            if (enter && getComputedStyle(enter).display !== 'none') {
+                btn.click();
+                console.log("[自动宽屏] 已自动切换到宽屏模式");
+            }
+            return true;
+        }
+        if (clickWide()) return;
+        const root = document.getElementById('bilibili-player') || document.body;
+        _wsObserver = new MutationObserver(() => {
+            if (clickWide()) {
+                _wsObserver.disconnect(); _wsObserver = null;
+                if (_wsTimeout) { clearTimeout(_wsTimeout); _wsTimeout = null; }
+            }
+        });
+        _wsObserver.observe(root, { childList: true, subtree: true });
+        _wsTimeout = setTimeout(() => {
+            if (_wsObserver) { _wsObserver.disconnect(); _wsObserver = null; }
+            _wsTimeout = null;
+        }, 15000);
+    }
+
     // 注入设置按钮相关操作
     function ensureQualitySettingsButton(shouldInject) {
         const qualityControl = document.querySelector('.bpx-player-ctrl-quality:not(.auto-quality-injected)');
@@ -2944,6 +2992,7 @@
 
             hideQualityButton();
             initQualitySettingsButton();
+            applyAutoWidescreen();
 
             window.playerControlsObserver = new MutationObserver(function () {
                 const qualityControl = DOM.refresh('qualityControl');
@@ -3254,6 +3303,7 @@
                             } else {
                                 await selectVideoQuality();
                                 applyDecodeSetting();
+                                applyAutoWidescreen();
                             }
                             if (panel) updateQualityButtons(panel);
                             console.log(`[任务管理] 任务 #${taskId}: 画质设置完成`);
