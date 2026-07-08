@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      6.2-Beta
+// @version      6.2.1-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -3133,29 +3133,26 @@
     let _hadBlur = false;
     window.addEventListener("blur", () => { _hadBlur = true; });
     window.addEventListener("focus", () => {
-        if (_hadBlur && state.liveDanmakuSync && state.isLivePage) syncLiveDanmaku();
-    });
-
-    // 后台标签页切回前台时的画质补救
-    document.addEventListener("visibilitychange", () => {
-        // 防后台降画质启用时 visibilityState 恒为 visible，无需也无法判断真实可见性，直接跳过兜底
-        if (state.preventBackgroundDegrade) return;
-        if (document.visibilityState !== "visible") return;
-
-        checkIfLivePage();
-
-        // 直播页切回前台时重新切换画质（仅在用户开启了该兜底时执行）
-        if (state.isLivePage) {
-            if (!state.liveAutoRecoverOnVisible) return;
+        if (!_hadBlur || !state.isLivePage) return;
+        if (state.liveDanmakuSync) syncLiveDanmaku();
+        if (state.liveAutoRecoverOnVisible) {
             console.log("[可见性恢复] 直播页切回前台，重新切换画质");
             setTimeout(async () => {
-                if (unsafeWindow.livePlayer && unsafeWindow.livePlayer.getPlayerInfo && unsafeWindow.livePlayer.switchQuality) {
+                if (unsafeWindow.livePlayer?.getPlayerInfo && unsafeWindow.livePlayer?.switchQuality) {
                     state.liveEntryForceHighest = state.userLiveQualitySetting === "最高画质";
                     await selectLiveQuality();
                 }
             }, 800);
-            return;
         }
+    });
+
+    // 后台标签页切回前台时的画质补救（仅视频页）
+    document.addEventListener("visibilitychange", () => {
+        if (state.preventBackgroundDegrade) return;
+        if (document.visibilityState !== "visible") return;
+
+        checkIfLivePage();
+        if (state.isLivePage) return;
 
         if (state.qualitySetSuccessfully) return;
 
