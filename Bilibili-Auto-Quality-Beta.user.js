@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      6.2.4-Beta
+// @version      6.2.5-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -75,7 +75,56 @@
             console.warn("[防后台降画质] 切换失败:", e);
         }
     }
-    applyVisibilityHijack(GM_getValue("preventBackgroundDegrade", true));
+    // 设置注册表，GM 键名全文仅在此出现；属性名与键名不同为历史存量，改键名会丢老用户设置
+    const SETTINGS = {
+        hiResAudioEnabled:         { key: "hiResAudio",                def: false },
+        dolbyAtmosEnabled:         { key: "dolbyAtmos",                def: false },
+        userQualitySetting:        { key: "qualitySetting",            def: "最高画质" },
+        useHighestQualityFallback: { key: "useHighestQualityFallback", def: true },
+        customSortEnabled:         { key: "customSortEnabled",         def: false },
+        customQualityOrder:        { key: "customQualityOrder",        def: null },
+        takeOverQualityControl:    { key: "takeOverQualityControl",    def: false },
+        unlockUA:                  { key: "unlockUA",                  def: false },
+        unlockHDR:                 { key: "unlockHDR",                 def: false },
+        unlockMarker:              { key: "unlockMarker",              def: true },
+        disableHDROption:          { key: "disableHDR",                def: false },
+        preventBackgroundDegrade:  { key: "preventBackgroundDegrade",  def: true },
+        liveAutoRecoverOnVisible:  { key: "liveAutoRecoverOnVisible",  def: false },
+        userLiveQualitySetting:    { key: "liveQualitySetting",        def: "最高画质" },
+        userLiveDecodeSetting:     { key: "liveDecodeSetting",         def: "默认" },
+        userVideoDecodeSetting:    { key: "videoDecodeSetting",        def: "默认" },
+        decodeSettingEnabled:      { key: "decodeSettingEnabled",      def: false },
+        devModeEnabled:            { key: "devModeEnabled",            def: false },
+        devModeVipStatus:          { key: "devModeVipStatus",          def: "默认" },
+        devModeNoLoginStatus:      { key: "devModeNoLoginStatus",      def: false },
+        preserveTouchPoints:       { key: "preserveTouchPoints",       def: false },
+        devModeAudioRetries:       { key: "devModeAudioRetries",       def: 2 },
+        devModeAudioDelay:         { key: "devModeAudioDelay",         def: 5000 },
+        devDoubleCheckDelay:       { key: "devDoubleCheckDelay",       def: 10000 },
+        devAllowFreeVipQualities:  { key: "devAllowFreeVipQualities",  def: false },
+        injectQualityButton:       { key: "injectQualityButton",       def: true },
+        qualityDoubleCheck:        { key: "qualityDoubleCheck",        def: true },
+        liveQualityDoubleCheck:    { key: "liveQualityDoubleCheck",    def: true },
+        liveQualityPollingEnabled: { key: "liveQualityPollingEnabled", def: false },
+        livePollingInterval:       { key: "livePollingInterval",       def: 60 },
+        liveKeepAliveEnabled:      { key: "liveKeepAliveEnabled",      def: false },
+        liveKeepAliveInterval:     { key: "liveKeepAliveInterval",     def: 60 },
+        autoWidescreen:            { key: "autoWidescreen",            def: false },
+        liveDanmakuSync:           { key: "liveDanmakuSync",           def: false },
+    };
+    function loadSetting(name) {
+        return GM_getValue(SETTINGS[name].key, SETTINGS[name].def);
+    }
+    function setSetting(name, value) {
+        if (!SETTINGS[name]) {
+            console.error("[设置] 未注册的设置项:", name);
+            return;
+        }
+        state[name] = value;
+        GM_setValue(SETTINGS[name].key, value);
+    }
+
+    applyVisibilityHijack(loadSetting("preventBackgroundDegrade"));
 
     // 直播页 B 站混淆类名，随 B 站发版变化；视频页见 DOM.selectors
     const LIVE_SELECTORS = {
@@ -85,50 +134,17 @@
     };
 
     const state = {
-        hiResAudioEnabled: GM_getValue("hiResAudio", false),
-        dolbyAtmosEnabled: GM_getValue("dolbyAtmos", false),
-        userQualitySetting: GM_getValue("qualitySetting", "最高画质"),
-        useHighestQualityFallback: GM_getValue("useHighestQualityFallback", true),
-        customSortEnabled: GM_getValue("customSortEnabled", false),
-        customQualityOrder: null,
-        takeOverQualityControl: GM_getValue("takeOverQualityControl", false),
-        // 解锁相关设置
-        unlockUA: GM_getValue("unlockUA", false),
-        unlockHDR: GM_getValue("unlockHDR", false),
-        unlockMarker: GM_getValue("unlockMarker", true),
-        disableHDROption: GM_getValue("disableHDR", false),
+        // customQualityOrder 此处为原始值，随后由 loadCustomOrder 规范化
+        ...Object.fromEntries(Object.keys(SETTINGS).map(name => [name, loadSetting(name)])),
+        // 运行时状态
         isVipUser: false,
         vipStatusChecked: false,
         isLoading: true,
         isLivePage: false,
         liveEntryForceHighest: false,
-        // 防后台降画质相关
-        preventBackgroundDegrade: GM_getValue("preventBackgroundDegrade", true),
-        liveAutoRecoverOnVisible: GM_getValue("liveAutoRecoverOnVisible", false),
-        userLiveQualitySetting: GM_getValue("liveQualitySetting", "最高画质"),
-        userLiveDecodeSetting: GM_getValue("liveDecodeSetting", "默认"),
-        userVideoDecodeSetting: GM_getValue("videoDecodeSetting", "默认"),
-        decodeSettingEnabled: GM_getValue("decodeSettingEnabled", false),
-        devModeEnabled: GM_getValue("devModeEnabled", false),
-        devModeVipStatus: GM_getValue("devModeVipStatus", "默认"),
-        devModeNoLoginStatus: GM_getValue("devModeNoLoginStatus", false),
-        preserveTouchPoints: GM_getValue("preserveTouchPoints", false),
-        devModeAudioRetries: GM_getValue("devModeAudioRetries", 2),
-        devModeAudioDelay: GM_getValue("devModeAudioDelay", 5000),
-        devDoubleCheckDelay: GM_getValue("devDoubleCheckDelay", 10000),
-        devAllowFreeVipQualities: GM_getValue("devAllowFreeVipQualities", false),
-        injectQualityButton: GM_getValue("injectQualityButton", true),
-        qualityDoubleCheck: GM_getValue("qualityDoubleCheck", true),
-        liveQualityDoubleCheck: GM_getValue("liveQualityDoubleCheck", true),
-        liveQualityPollingEnabled: GM_getValue("liveQualityPollingEnabled", false),
-        livePollingInterval: GM_getValue("livePollingInterval", 60),
         livePollingTimerId: null,
-        liveKeepAliveEnabled: GM_getValue("liveKeepAliveEnabled", false),
-        liveKeepAliveInterval: GM_getValue("liveKeepAliveInterval", 60),
         liveKeepAliveTimerId: null,
         qualitySetSuccessfully: false,
-        autoWidescreen: GM_getValue("autoWidescreen", false),
-        liveDanmakuSync: GM_getValue("liveDanmakuSync", false),
         sessionCache: {
             vipStatus: null,
             vipChecked: false
@@ -1117,23 +1133,20 @@
         return Math.min(hi, def);
     }
     function loadCustomOrder() {
-        let raw = GM_getValue("customQualityOrder", null);
+        let raw = loadSetting("customQualityOrder");
         if (typeof raw === "string") {
             try { raw = JSON.parse(raw); } catch (e) { raw = null; }
         }
         return normalizeCustomOrder(raw);
     }
+    // state 存数组、GM 存 JSON 串，故不走 setSetting
     function saveCustomOrder(order) {
         const normalized = normalizeCustomOrder(order);
         state.customQualityOrder = normalized;
-        GM_setValue("customQualityOrder", JSON.stringify(normalized));
+        GM_setValue(SETTINGS.customQualityOrder.key, JSON.stringify(normalized));
         return normalized;
     }
     state.customQualityOrder = loadCustomOrder();
-    function setSetting(stateKey, gmKey, value) {
-        state[stateKey] = value;
-        GM_setValue(gmKey, value);
-    }
     function getDoubleCheckConfig(isLive) {
         const enabled = state.devModeEnabled ? (isLive ? state.liveQualityDoubleCheck : state.qualityDoubleCheck) : true;
         const delayMs = state.devModeEnabled ? state.devDoubleCheckDelay : 5000;
@@ -1325,55 +1338,47 @@
         panel.addEventListener("click", function (e) {
             const btn = e.target.closest(".quality-button");
             if (btn && !state.customSortEnabled && !state.isLoading) {
-                const quality = btn.getAttribute("data-quality");
-                state.userQualitySetting = quality;
-                GM_setValue("qualitySetting", quality);
+                setSetting("userQualitySetting", btn.getAttribute("data-quality"));
                 updateQualityButtons(panel);
                 selectQualityBasedOnSetting();
             }
         });
         panel.querySelector("#custom-sort").addEventListener("change", function (e) {
             if (state.isLoading) return;
-            state.customSortEnabled = e.target.checked;
-            GM_setValue("customSortEnabled", state.customSortEnabled);
+            setSetting("customSortEnabled", e.target.checked);
             renderGrid();
             updateQualityButtons(panel);
             selectQualityBasedOnSetting();
         });
         panel.querySelector("#highest-quality-fallback").addEventListener("change", function (e) {
             if (!state.isLoading) {
-                state.useHighestQualityFallback = e.target.checked;
-                GM_setValue("useHighestQualityFallback", state.useHighestQualityFallback);
+                setSetting("useHighestQualityFallback", e.target.checked);
                 selectQualityBasedOnSetting();
             }
         });
         panel.querySelector("#hi-res-audio").addEventListener("change", function (e) {
             if (!state.isLoading) {
-                state.hiResAudioEnabled = e.target.checked;
-                GM_setValue("hiResAudio", state.hiResAudioEnabled);
+                setSetting("hiResAudioEnabled", e.target.checked);
                 updateQualityButtons(panel);
                 selectQualityBasedOnSetting();
             }
         });
         panel.querySelector("#dolby-atmos").addEventListener("change", function (e) {
             if (!state.isLoading) {
-                state.dolbyAtmosEnabled = e.target.checked;
-                GM_setValue("dolbyAtmos", state.dolbyAtmosEnabled);
+                setSetting("dolbyAtmosEnabled", e.target.checked);
                 updateQualityButtons(panel);
                 selectQualityBasedOnSetting();
             }
         });
         panel.querySelector("#inject-quality-button").addEventListener("change", function (e) {
             if (!state.isLoading) {
-                state.injectQualityButton = e.target.checked;
-                GM_setValue("injectQualityButton", state.injectQualityButton);
+                setSetting("injectQualityButton", e.target.checked);
                 ensureQualitySettingsButton(state.injectQualityButton);
             }
         });
         panel.querySelector("#auto-widescreen").addEventListener("change", function (e) {
             if (!state.isLoading) {
-                state.autoWidescreen = e.target.checked;
-                GM_setValue("autoWidescreen", state.autoWidescreen);
+                setSetting("autoWidescreen", e.target.checked);
                 // 关闭时也调用以清理等待中的观察器
                 applyAutoWidescreen();
             }
@@ -2161,8 +2166,7 @@
           `;
             panel.querySelectorAll(".live-quality-button").forEach(button => {
                 button.addEventListener("click", () => {
-                    state.userLiveQualitySetting = button.getAttribute("data-quality");
-                    GM_setValue("liveQualitySetting", state.userLiveQualitySetting);
+                    setSetting("userLiveQualitySetting", button.getAttribute("data-quality"));
                     updatePanel();
                     selectLiveQuality();
                     restartLivePollingIfNeeded();
@@ -2171,8 +2175,7 @@
             const pollingSwitch = panel.querySelector("#live-quality-polling");
             if (pollingSwitch) {
                 pollingSwitch.addEventListener("change", function (e) {
-                    state.liveQualityPollingEnabled = e.target.checked;
-                    GM_setValue("liveQualityPollingEnabled", state.liveQualityPollingEnabled);
+                    setSetting("liveQualityPollingEnabled", e.target.checked);
                     const intervalGroup = panel.querySelector("#live-polling-interval-group");
                     const intervalInputEl = panel.querySelector("#live-polling-interval");
                     if (intervalGroup) intervalGroup.classList.toggle("disabled", !state.liveQualityPollingEnabled);
@@ -2191,8 +2194,7 @@
                     if (isNaN(value) || value < 5) value = 5;
                     if (value > 3600) value = 3600;
                     e.target.value = value;
-                    state.livePollingInterval = value;
-                    GM_setValue("livePollingInterval", value);
+                    setSetting("livePollingInterval", value);
                     restartLivePollingIfNeeded();
                     updatePollingStatusIndicator();
                 });
@@ -2200,8 +2202,7 @@
             const keepAliveSwitch = panel.querySelector("#live-keep-alive");
             if (keepAliveSwitch) {
                 keepAliveSwitch.addEventListener("change", function (e) {
-                    state.liveKeepAliveEnabled = e.target.checked;
-                    GM_setValue("liveKeepAliveEnabled", state.liveKeepAliveEnabled);
+                    setSetting("liveKeepAliveEnabled", e.target.checked);
                     const kaGroup = panel.querySelector("#live-keepalive-interval-group");
                     const kaInput = panel.querySelector("#live-keepalive-interval");
                     if (kaGroup) kaGroup.classList.toggle("disabled", !state.liveKeepAliveEnabled);
@@ -2220,8 +2221,7 @@
                     if (isNaN(value) || value < 1) value = 1;
                     if (value > 1440) value = 1440;
                     e.target.value = value;
-                    state.liveKeepAliveInterval = value;
-                    GM_setValue("liveKeepAliveInterval", value);
+                    setSetting("liveKeepAliveInterval", value);
                     if (state.liveKeepAliveEnabled) startLiveKeepAlive();
                     updateKeepAliveStatusIndicator();
                 });
@@ -2229,23 +2229,20 @@
             const preventBgSwitch = panel.querySelector("#prevent-bg-degrade");
             if (preventBgSwitch) {
                 preventBgSwitch.addEventListener("change", function (e) {
-                    state.preventBackgroundDegrade = e.target.checked;
-                    GM_setValue("preventBackgroundDegrade", state.preventBackgroundDegrade);
+                    setSetting("preventBackgroundDegrade", e.target.checked);
                     applyVisibilityHijack(state.preventBackgroundDegrade);
                 });
             }
             const liveAutoRecoverSwitch = panel.querySelector("#live-auto-recover");
             if (liveAutoRecoverSwitch) {
                 liveAutoRecoverSwitch.addEventListener("change", function (e) {
-                    state.liveAutoRecoverOnVisible = e.target.checked;
-                    GM_setValue("liveAutoRecoverOnVisible", state.liveAutoRecoverOnVisible);
+                    setSetting("liveAutoRecoverOnVisible", e.target.checked);
                 });
             }
             const liveDanmakuSyncSwitch = panel.querySelector("#live-danmaku-sync");
             if (liveDanmakuSyncSwitch) {
                 liveDanmakuSyncSwitch.addEventListener("change", function (e) {
-                    state.liveDanmakuSync = e.target.checked;
-                    GM_setValue("liveDanmakuSync", state.liveDanmakuSync);
+                    setSetting("liveDanmakuSync", e.target.checked);
                 });
             }
             setupSteppers(panel);
@@ -2467,8 +2464,7 @@
           </div>
         `;
         panel.querySelector("#decode-setting-enabled").addEventListener("change", function (e) {
-            state.decodeSettingEnabled = e.target.checked;
-            GM_setValue("decodeSettingEnabled", state.decodeSettingEnabled);
+            setSetting("decodeSettingEnabled", e.target.checked);
             console.log(`[解码设置] 解码设置已${state.decodeSettingEnabled ? '启用' : '关闭'}`);
             const strategy = panel.querySelector("#decode-strategy");
             if (strategy) strategy.classList.toggle("disabled", !state.decodeSettingEnabled);
@@ -2480,13 +2476,7 @@
             const target = e.target;
             if (target.classList.contains("quality-button")) {
                 const value = target.getAttribute("data-decode");
-                if (state.isLivePage) {
-                    state.userLiveDecodeSetting = value;
-                    GM_setValue("liveDecodeSetting", value);
-                } else {
-                    state.userVideoDecodeSetting = value;
-                    GM_setValue("videoDecodeSetting", value);
-                }
+                setSetting(state.isLivePage ? "userLiveDecodeSetting" : "userVideoDecodeSetting", value);
                 Utils.queryAll(".quality-button", panel).forEach(btn => {
                     btn.classList.toggle("active", btn === target);
                 });
@@ -2622,18 +2612,15 @@
         `;
         document.body.appendChild(panel);
         panel.querySelector('#unlock-ua').addEventListener('change', function (e) {
-            state.unlockUA = e.target.checked;
-            GM_setValue("unlockUA", state.unlockUA);
+            setSetting("unlockUA", e.target.checked);
             console.log(`[解锁设置] 开启 UA 修改: ${state.unlockUA}`);
         });
         panel.querySelector('#unlock-hdr').addEventListener('change', function (e) {
-            state.unlockHDR = e.target.checked;
-            GM_setValue("unlockHDR", state.unlockHDR);
+            setSetting("unlockHDR", e.target.checked);
             console.log(`[解锁设置] 开启 HDR 修改: ${state.unlockHDR}`);
         });
         panel.querySelector('#unlock-marker').addEventListener('change', function (e) {
-            state.unlockMarker = e.target.checked;
-            GM_setValue("unlockMarker", state.unlockMarker);
+            setSetting("unlockMarker", e.target.checked);
             console.log(`[解锁设置] 开启标记解锁: ${state.unlockMarker}`);
         });
         panel.querySelector('.refresh-button').addEventListener('click', function () {
@@ -2789,14 +2776,14 @@
         document.body.appendChild(panel);
         setupSteppers(panel);
         panel.querySelector('#dev-mode').addEventListener('change', function (e) {
-            setSetting("devModeEnabled", "devModeEnabled", e.target.checked);
+            setSetting("devModeEnabled", e.target.checked);
             setDevPanelEnabled(panel, state.devModeEnabled);
         });
         panel.querySelector('#quality-double-check').addEventListener('change', function (e) {
-            setSetting("qualityDoubleCheck", "qualityDoubleCheck", e.target.checked);
+            setSetting("qualityDoubleCheck", e.target.checked);
         });
         panel.querySelector('#live-quality-double-check').addEventListener('change', function (e) {
-            setSetting("liveQualityDoubleCheck", "liveQualityDoubleCheck", e.target.checked);
+            setSetting("liveQualityDoubleCheck", e.target.checked);
         });
         // 会员状态按钮点击事件
         const vipStatusTabs = panel.querySelector('.vip-status-tabs');
@@ -2806,7 +2793,7 @@
                 const target = e.target;
                 if (target.classList.contains('vip-status-tab')) {
                     const status = target.getAttribute('data-status');
-                    setSetting("devModeVipStatus", "devModeVipStatus", status);
+                    setSetting("devModeVipStatus", status);
 
                     // 更新UI状态
                     vipStatusTabs.setAttribute('data-active', status);
@@ -2819,40 +2806,40 @@
             });
         }
         panel.querySelector('#dev-no-login').addEventListener('change', function (e) {
-            setSetting("devModeNoLoginStatus", "devModeNoLoginStatus", e.target.checked);
+            setSetting("devModeNoLoginStatus", e.target.checked);
         });
 
         panel.querySelector('#dev-allow-freevip').addEventListener('change', function (e) {
-            setSetting("devAllowFreeVipQualities", "devAllowFreeVipQualities", e.target.checked);
+            setSetting("devAllowFreeVipQualities", e.target.checked);
         });
 
         panel.querySelector('#preserve-touch-points').addEventListener('change', function(e) {
-            setSetting("preserveTouchPoints", "preserveTouchPoints", e.target.checked);
+            setSetting("preserveTouchPoints", e.target.checked);
         });
         panel.querySelector('#disable-hdr').addEventListener('change', function (e) {
-            setSetting("disableHDROption", "disableHDR", e.target.checked);
+            setSetting("disableHDROption", e.target.checked);
         });
 
         panel.querySelector('#remove-quality-button').addEventListener('change', function (e) {
-            setSetting("takeOverQualityControl", "takeOverQualityControl", e.target.checked);
+            setSetting("takeOverQualityControl", e.target.checked);
         });
         // 绑定三个数字输入框的事件
         panel.querySelector('#dev-double-check-delay').addEventListener('input', function (e) {
             const value = parseInt(e.target.value, 10);
             if (!isNaN(value)) {
-                setSetting("devDoubleCheckDelay", "devDoubleCheckDelay", value);
+                setSetting("devDoubleCheckDelay", value);
             }
         });
         panel.querySelector('#dev-audio-delay').addEventListener('input', function (e) {
             const value = parseInt(e.target.value, 10);
             if (!isNaN(value)) {
-                setSetting("devModeAudioDelay", "devModeAudioDelay", value);
+                setSetting("devModeAudioDelay", value);
             }
         });
         panel.querySelector('#dev-audio-retries').addEventListener('input', function (e) {
             const value = parseInt(e.target.value, 10);
             if (!isNaN(value)) {
-                setSetting("devModeAudioRetries", "devModeAudioRetries", value);
+                setSetting("devModeAudioRetries", value);
             }
         });
         panel.querySelector('.refresh-button').addEventListener('click', function () {
