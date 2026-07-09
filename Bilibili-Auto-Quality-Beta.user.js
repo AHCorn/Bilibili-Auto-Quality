@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      6.2.3-Beta
+// @version      6.2.4-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -35,7 +35,7 @@
     // 只改属性不拦截事件，避免破坏弹幕时间同步等依赖 visibilitychange 的功能
     // 保存原 descriptor 以支持运行时切换（关闭时完全还原）
     const VISIBILITY_PROPS = ["visibilityState", "hidden", "webkitVisibilityState", "webkitHidden"];
-    // 劫持开启后 document.visibilityState 恒为 "visible"，切回前台检测需经劫持前捕获的原生 getter 读取真实可见性
+    // 劫持后 visibilityState 恒为 "visible"，真实值须经劫持前捕获的原生 getter 读取
     const nativeVisibilityStateGetter = (() => {
         try {
             const desc = Object.getOwnPropertyDescriptor(unsafeWindow.Document.prototype, "visibilityState");
@@ -76,6 +76,13 @@
         }
     }
     applyVisibilityHijack(GM_getValue("preventBackgroundDegrade", true));
+
+    // 直播页 B 站混淆类名，随 B 站发版变化；视频页见 DOM.selectors
+    const LIVE_SELECTORS = {
+        decodeList: '.YccudlUCmLKcUTg_yzKN',
+        decodeItem: 'li.HfodaIBaRC9NaglgykBX',
+        decodeSelectedClass: 'fG2r2piYghHTQKQZF8bl',
+    };
 
     const state = {
         hiResAudioEnabled: GM_getValue("hiResAudio", false),
@@ -1367,7 +1374,7 @@
             if (!state.isLoading) {
                 state.autoWidescreen = e.target.checked;
                 GM_setValue("autoWidescreen", state.autoWidescreen);
-                // 关闭时同样调用：函数内部会清理等待中的观察器与定时器
+                // 关闭时也调用以清理等待中的观察器
                 applyAutoWidescreen();
             }
         });
@@ -2515,7 +2522,7 @@
         const wanted = state.isLivePage ? (state.userLiveDecodeSetting || '默认') : (state.userVideoDecodeSetting || '默认');
         // 直播页：点击 UL 列表项
         if (state.isLivePage) {
-            const decodeList = document.querySelector('.YccudlUCmLKcUTg_yzKN');
+            const decodeList = document.querySelector(LIVE_SELECTORS.decodeList);
             if (!decodeList) {
                 if (retryCount < maxRetries) {
                     setTimeout(() => applyDecodeSetting(retryCount + 1), 1000);
@@ -2524,7 +2531,7 @@
                 }
                 return;
             }
-            const items = Array.from(decodeList.querySelectorAll('li.HfodaIBaRC9NaglgykBX'));
+            const items = Array.from(decodeList.querySelectorAll(LIVE_SELECTORS.decodeItem));
             if (items.length === 0) {
                 if (retryCount < maxRetries) {
                     setTimeout(() => applyDecodeSetting(retryCount + 1), 1000);
@@ -2533,7 +2540,7 @@
                 }
                 return;
             }
-            const selectedClass = 'fG2r2piYghHTQKQZF8bl';
+            const selectedClass = LIVE_SELECTORS.decodeSelectedClass;
             let target = items.find(li => (li.textContent || '').trim().includes(wanted)) || items[0];
             if (!target) return;
             if (target.classList.contains(selectedClass)) {
@@ -3148,15 +3155,13 @@
     }
     window.addEventListener("DOMContentLoaded", initPlayerScripts, { once: true });
 
-    // 后台标签页切回前台时的兜底处理
-    // 防后台降画质的劫持只改属性读取、不拦截事件，visibilitychange 仍照常触发，
-    // 经 getRealVisibilityState 判断真实可见性，劫持开关均适用
+    // 切回前台兜底。劫持只改属性读取、不拦截事件，visibilitychange 仍照常触发
     document.addEventListener("visibilitychange", () => {
         if (getRealVisibilityState() !== "visible") return;
 
         checkIfLivePage();
 
-        // 直播页：弹幕同步与画质纠正，各自受设置开关控制
+        // 直播页：弹幕同步与画质纠正
         if (state.isLivePage) {
             if (state.liveDanmakuSync) syncLiveDanmaku();
             if (state.liveAutoRecoverOnVisible) {
@@ -3340,7 +3345,7 @@
         state.isLoading = !state.vipStatusChecked;
         state.qualitySetSuccessfully = false;
 
-        // 宽屏切换不依赖画质流程，URL 变更后立即执行，避免等待画质设置造成的延迟
+        // 不依赖画质流程，URL 变更后立即执行
         applyAutoWidescreen();
 
         const panel = document.getElementById("bilibili-quality-selector");
@@ -3365,7 +3370,7 @@
                             } else {
                                 await selectVideoQuality();
                                 applyDecodeSetting();
-                                // 二次兜底：URL 变更时的立即调用若因播放器重建而失效，此处补上；已宽屏时为无操作
+                                // 兜底 URL 变更时因播放器重建而失效的立即调用；已宽屏时无操作
                                 applyAutoWidescreen();
                             }
                             if (panel) updateQualityButtons(panel);
