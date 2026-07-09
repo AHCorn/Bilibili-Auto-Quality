@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      6.2.1-Beta
+// @version      6.2.2-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -35,6 +35,19 @@
     // 只改属性不拦截事件，避免破坏弹幕时间同步等依赖 visibilitychange 的功能
     // 保存原 descriptor 以支持运行时切换（关闭时完全还原）
     const VISIBILITY_PROPS = ["visibilityState", "hidden", "webkitVisibilityState", "webkitHidden"];
+    // 劫持开启后 document.visibilityState 恒为 "visible"，切回前台检测需经劫持前捕获的原生 getter 读取真实可见性
+    const nativeVisibilityStateGetter = (() => {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(unsafeWindow.Document.prototype, "visibilityState");
+            return desc && desc.get ? desc.get : null;
+        } catch (e) { return null; }
+    })();
+    function getRealVisibilityState() {
+        try {
+            if (nativeVisibilityStateGetter) return nativeVisibilityStateGetter.call(unsafeWindow.document);
+        } catch (e) {}
+        return document.visibilityState;
+    }
     let originalVisibilityDescriptors = null;
     function applyVisibilityHijack(enable) {
         try {
@@ -1354,7 +1367,8 @@
             if (!state.isLoading) {
                 state.autoWidescreen = e.target.checked;
                 GM_setValue("autoWidescreen", state.autoWidescreen);
-                if (state.autoWidescreen) applyAutoWidescreen();
+                // 关闭时同样调用：函数内部会清理等待中的观察器与定时器
+                applyAutoWidescreen();
             }
         });
         document.body.appendChild(panel);
@@ -2944,9 +2958,13 @@
             _danmakuSyncing = true;
             lp.updateDMSetting({ display: false });
             setTimeout(() => {
-                try { lp.updateDMSetting({ display: true }); } catch (e) {}
+                try {
+                    lp.updateDMSetting({ display: true });
+                    console.log("[弹幕同步] 已刷新直播弹幕");
+                } catch (e) {
+                    console.warn("[弹幕同步] 恢复弹幕显示失败:", e);
+                }
                 _danmakuSyncing = false;
-                console.log("[弹幕同步] 已刷新直播弹幕");
             }, 500);
         } catch (e) {
             _danmakuSyncing = false;
@@ -3130,30 +3148,30 @@
     }
     window.addEventListener("DOMContentLoaded", initPlayerScripts, { once: true });
 
-    let _hadBlur = false;
-    window.addEventListener("blur", () => { _hadBlur = true; });
-    window.addEventListener("focus", () => {
-        if (!_hadBlur || !state.isLivePage) return;
-        if (state.liveDanmakuSync) syncLiveDanmaku();
-        if (state.liveAutoRecoverOnVisible) {
-            console.log("[可见性恢复] 直播页切回前台，重新切换画质");
-            setTimeout(async () => {
-                if (unsafeWindow.livePlayer?.getPlayerInfo && unsafeWindow.livePlayer?.switchQuality) {
-                    state.liveEntryForceHighest = state.userLiveQualitySetting === "最高画质";
-                    await selectLiveQuality();
-                }
-            }, 800);
-        }
-    });
-
-    // 后台标签页切回前台时的画质补救（仅视频页）
+    // 后台标签页切回前台时的兜底处理
+    // 防后台降画质的劫持只改属性读取、不拦截事件，visibilitychange 仍照常触发，
+    // 经 getRealVisibilityState 判断真实可见性，劫持开关均适用
     document.addEventListener("visibilitychange", () => {
-        if (state.preventBackgroundDegrade) return;
-        if (document.visibilityState !== "visible") return;
+        if (getRealVisibilityState() !== "visible") return;
 
         checkIfLivePage();
-        if (state.isLivePage) return;
 
+        // 直播页：弹幕同步与画质纠正，各自受设置开关控制
+        if (state.isLivePage) {
+            if (state.liveDanmakuSync) syncLiveDanmaku();
+            if (state.liveAutoRecoverOnVisible) {
+                console.log("[可见性恢复] 直播页切回前台，重新切换画质");
+                setTimeout(async () => {
+                    if (unsafeWindow.livePlayer?.getPlayerInfo && unsafeWindow.livePlayer?.switchQuality) {
+                        state.liveEntryForceHighest = state.userLiveQualitySetting === "最高画质";
+                        await selectLiveQuality();
+                    }
+                }, 800);
+            }
+            return;
+        }
+
+        // 视频页：画质尚未成功设置时重试
         if (state.qualitySetSuccessfully) return;
 
         console.log("[可见性恢复] 标签页变为可见，画质尚未成功设置，尝试重新触发");
