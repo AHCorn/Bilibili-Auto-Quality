@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      6.2.2-Beta
+// @version      6.2.3-Beta
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -3340,6 +3340,9 @@
         state.isLoading = !state.vipStatusChecked;
         state.qualitySetSuccessfully = false;
 
+        // 宽屏切换不依赖画质流程，URL 变更后立即执行，避免等待画质设置造成的延迟
+        applyAutoWidescreen();
+
         const panel = document.getElementById("bilibili-quality-selector");
         if (panel) updateQualityButtons(panel);
 
@@ -3362,6 +3365,7 @@
                             } else {
                                 await selectVideoQuality();
                                 applyDecodeSetting();
+                                // 二次兜底：URL 变更时的立即调用若因播放器重建而失效，此处补上；已宽屏时为无操作
                                 applyAutoWidescreen();
                             }
                             if (panel) updateQualityButtons(panel);
