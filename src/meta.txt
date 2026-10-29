@@ -1,0 +1,34 @@
+// ==UserScript==
+// @name         哔哩哔哩自动画质
+// @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
+// @version      7.0
+// @license      GPL-3.0
+// @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
+// @author       安和（AHCorn）
+// @icon         https://www.bilibili.com/favicon.ico
+// @match        *://www.bilibili.com/video/*
+// @match        *://www.bilibili.com/list/*
+// @match        *://www.bilibili.com/blackboard/*
+// @match        *://www.bilibili.com/watchlater/*
+// @match        *://www.bilibili.com/bangumi/*
+// @match        *://www.bilibili.com/watchroom/*
+// @match        *://www.bilibili.com/medialist/*
+// @match        *://www.bilibili.com/cheese/play/*
+// @match        *://www.bilibili.com/festival/*
+// @match        *://bangumi.bilibili.com/*
+// @match        *://live.bilibili.com/*
+// @exclude      *://live.bilibili.com/
+// @exclude      *://live.bilibili.com/?*
+// @exclude      *://live.bilibili.com/p/*
+// @noframes
+// @grant        GM_addStyle
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_registerMenuCommand
+// @grant        GM_addValueChangeListener
+// @grant        GM_info
+// @grant        unsafeWindow
+// @run-at       document-start
+// @updateURL    https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js
+// @downloadURL  https://github.com/AHCorn/Bilibili-Auto-Quality/raw/main/Bilibili-Auto-Quality.user.js
+// ==/UserScript==

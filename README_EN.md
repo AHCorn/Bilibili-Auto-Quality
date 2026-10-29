@@ -40,9 +40,13 @@ Automatically unlock and change the quality of Bilibili video, audio, and live s
 
 3. Automatically selects the highest available video quality based on whether the user is a VIP member.
    
-4. Users can customize default primary and backup quality preferences in the settings panel.
+4. Users can customize default primary and backup quality preferences, as well as custom quality priority order in the settings panel.
    
 5. Supports automatic toggling of lossless audio and Dolby Atmos.
+
+6. Supports adaptive quality downgrade on poor network, background quality degradation prevention, live quality polling lock, and page keep-alive.
+
+7. Supports automatic codec selection, auto widescreen, cross-tab settings sync, and panel dark mode.
 
 
 <br>
