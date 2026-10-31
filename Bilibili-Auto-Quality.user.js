@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      7.0
+// @version      7.0.1
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -18,7 +18,6 @@
 // @match        *://bangumi.bilibili.com/*
 // @match        *://live.bilibili.com/*
 // @exclude      *://live.bilibili.com/
-// @exclude      *://live.bilibili.com/?*
 // @exclude      *://live.bilibili.com/p/*
 // @noframes
 // @grant        GM_addStyle
@@ -3365,9 +3364,28 @@
     session.announcedDowngradeQn = resolution.option.qn;
     console.log(`[直播画质] 本直播间没有「${resolution.downgradedFrom}」，已就近降到「${liveQualityLabel(resolution.option)}」(qn: ${resolution.option.qn})`);
   }
+  function getLivePlayer() {
+    try {
+      if (unsafeWindow.livePlayer) return unsafeWindow.livePlayer;
+      if (typeof document !== "undefined" && typeof document.querySelectorAll === "function") {
+        const frames = document.querySelectorAll('iframe[src*="/blanc/"], iframe');
+        for (const frame of Array.from(frames)) {
+          try {
+            const lp = frame.contentWindow?.livePlayer;
+            if (lp) return lp;
+          } catch (e) {
+            debugTransient(e);
+          }
+        }
+      }
+    } catch (e) {
+      debugTransient(e);
+    }
+    return void 0;
+  }
   function liveFacadeInfo() {
     try {
-      const lp = unsafeWindow.livePlayer;
+      const lp = getLivePlayer();
       if (lp && typeof lp.getPlayerInfo === "function") {
         const info = lp.getPlayerInfo();
         if (!info) return null;
@@ -3397,11 +3415,11 @@
       return true;
     }
     try {
-      const lp = unsafeWindow.livePlayer;
+      const lp = getLivePlayer();
       if (lp && typeof lp.switchQuality === "function") {
         const seq = ++liveSwitchSeq;
         session.lastSwitch = { targetQn: qn, fromQn: options.fromQn, at: Date.now(), confirmed: false };
-        const result = lp.switchQuality(qn);
+        const result = lp.switchQuality(String(qn));
         if (result && typeof result.catch === "function") {
           result.catch((reason) => {
             if (seq !== liveSwitchSeq) {
@@ -3429,7 +3447,7 @@
     }
     session.consecutiveFailures.delete(target.qn);
     session.blockedQns.add(target.qn);
-    console.warn(`[直播画质] 「${liveQualityLabel(target)}」连续 ${count} 次切不过去（付费直播、舰长专属、大会员专属档常见此现象），本直播间内不再尝试该档，改用可用的次高档；换直播间后重置`);
+    console.warn(`[直播画质] 「${liveQualityLabel(target)}」切换 ${count} 次后画质均未变化，本直播间内不再尝试该档，改用可用的次高档；换直播间后重置`);
     updatePollingStatusIndicator();
     return true;
   }
@@ -3520,7 +3538,7 @@
         const info = liveFacadeInfo();
         let switchable = false;
         try {
-          const lp = unsafeWindow.livePlayer;
+          const lp = getLivePlayer();
           switchable = !!(lp && typeof lp.switchQuality === "function");
         } catch (e) {
           debugTransient(e);
@@ -3767,7 +3785,7 @@
   }
   function liveSetDanmakuDisplay(display) {
     try {
-      const lp = unsafeWindow.livePlayer;
+      const lp = getLivePlayer();
       if (lp && typeof lp.updateDMSetting === "function") {
         lp.updateDMSetting({ display });
         return true;
@@ -3780,7 +3798,7 @@
   function syncLiveDanmaku() {
     if (_danmakuSyncing) return;
     try {
-      const lp = unsafeWindow.livePlayer;
+      const lp = getLivePlayer();
       if (!lp?.getPlayerInfo || !lp?.updateDMSetting) return;
       if (!lp.getPlayerInfo()?.danmaku?.display) {
         if (_danmakuForcedOff && liveSetDanmakuDisplay(true)) {
@@ -4329,6 +4347,22 @@
   var DECODE_MAX_CLICK_ATTEMPTS = 3;
   var decodeClickAttempts = 0;
   var DECODE_LIVE_VERIFY_DELAY_MS = 1200;
+  function queryLiveDecodeList() {
+    const direct = document.querySelector(BILI.live.decodeList);
+    if (direct) return direct;
+    if (typeof document.querySelectorAll === "function") {
+      const frames = document.querySelectorAll('iframe[src*="/blanc/"], iframe');
+      for (const frame of Array.from(frames)) {
+        try {
+          const found = frame.contentDocument?.querySelector(BILI.live.decodeList);
+          if (found) return found;
+        } catch (e) {
+          debugTransient(e);
+        }
+      }
+    }
+    return null;
+  }
   function applyDecodeSetting(retryCount = 0) {
     if (retryCount === 0) {
       cancelDecodeRetry();
@@ -4342,7 +4376,7 @@
     }
     const wanted = state.isLivePage ? state.userLiveDecodeSetting || "默认" : state.userVideoDecodeSetting || "默认";
     if (state.isLivePage) {
-      const decodeList = document.querySelector(BILI.live.decodeList);
+      const decodeList = queryLiveDecodeList();
       if (!decodeList) {
         if (!decodeRetryExhausted()) {
           scheduleDecodeRetry(retryCount);
@@ -4716,6 +4750,10 @@
   }
   function readPageObject(name) {
     try {
+      if (name === "livePlayer") {
+        const lp = getLivePlayer();
+        return lp && typeof lp === "object" ? lp : null;
+      }
       const value = unsafeWindow[name];
       return value && typeof value === "object" ? value : null;
     } catch (error) {
@@ -6716,10 +6754,16 @@
     }
     runSafely(checkVipStatusAsync().then(refreshQualityPanel), "登录门收尾");
   }
+  function isLiveNonRoomPage() {
+    if (window.location.protocol === "file:") return false;
+    const path = window.location.pathname;
+    return path === "/" || path.startsWith("/p/");
+  }
   function initPlayerScripts() {
     checkIfLivePage();
     if (state.isLivePage) {
       state.isLoading = false;
+      if (isLiveNonRoomPage()) return;
       state.liveEntryForceHighest = state.userLiveQualitySetting === "最高画质";
       const initTaskId = taskQueue.currentTaskId;
       runSafely((async () => {
@@ -7071,8 +7115,9 @@
       await taskQueue.scheduleTask(taskId, async () => {
         if (taskQueue.isTaskCancelled(taskId)) return;
         if (state.isLivePage) {
-          console.log(`[任务管理] 任务 #${taskId}: 直播页跳过视频版就绪等待`);
           state.isLoading = false;
+          if (isLiveNonRoomPage()) return;
+          console.log(`[任务管理] 任务 #${taskId}: 直播页跳过视频版就绪等待`);
           state.liveEntryForceHighest = state.userLiveQualitySetting === "最高画质";
           createLiveSettingsPanel();
           await selectLiveQuality();

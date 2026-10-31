@@ -105,10 +105,17 @@ function settleLoadingLock(taskId: number, stage: string): void {
     runSafely(checkVipStatusAsync().then(refreshQualityPanel), "登录门收尾");
 }
 
+function isLiveNonRoomPage(): boolean {
+    if (window.location.protocol === "file:") return false;
+    const path = window.location.pathname;
+    return path === "/" || path.startsWith("/p/");
+}
+
 function initPlayerScripts() {
     checkIfLivePage();
     if (state.isLivePage) {
         state.isLoading = false;
+        if (isLiveNonRoomPage()) return;
         state.liveEntryForceHighest = state.userLiveQualitySetting === "最高画质";
         const initTaskId = taskQueue.currentTaskId;
         runSafely((async () => {
@@ -487,8 +494,9 @@ async function onUrlChange() {
         await taskQueue.scheduleTask(taskId, async () => {
             if (taskQueue.isTaskCancelled(taskId)) return;
             if (state.isLivePage) {
-                console.log(`[任务管理] 任务 #${taskId}: 直播页跳过视频版就绪等待`);
                 state.isLoading = false;
+                if (isLiveNonRoomPage()) return;
+                console.log(`[任务管理] 任务 #${taskId}: 直播页跳过视频版就绪等待`);
                 state.liveEntryForceHighest = state.userLiveQualitySetting === "最高画质";
                 createLiveSettingsPanel();
                 await selectLiveQuality();

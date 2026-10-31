@@ -37,7 +37,7 @@ declare global {
 
     interface BiliLivePlayer {
         getPlayerInfo?: () => BiliLivePlayerInfo | null | undefined;
-        switchQuality?: (qn: number | string) => unknown;
+        switchQuality?: (qn: string) => unknown;
         updateDMSetting?: (opt: Required<BiliLiveDanmakuState>) => void;
     }
 

@@ -36,6 +36,20 @@ let decodeMissReported = false;
 const DECODE_MAX_CLICK_ATTEMPTS = 3;
 let decodeClickAttempts = 0;
 const DECODE_LIVE_VERIFY_DELAY_MS = 1200;
+function queryLiveDecodeList(): Element | null {
+    const direct = document.querySelector(BILI.live.decodeList);
+    if (direct) return direct;
+    if (typeof document.querySelectorAll === "function") {
+        const frames = document.querySelectorAll<HTMLIFrameElement>('iframe[src*="/blanc/"], iframe');
+        for (const frame of Array.from(frames)) {
+            try {
+                const found = frame.contentDocument?.querySelector(BILI.live.decodeList);
+                if (found) return found;
+            } catch (e) { debugTransient(e); }
+        }
+    }
+    return null;
+}
 export function applyDecodeSetting(retryCount = 0) {
     if (retryCount === 0) {
         cancelDecodeRetry();
@@ -50,7 +64,7 @@ export function applyDecodeSetting(retryCount = 0) {
     const wanted = state.isLivePage ? (state.userLiveDecodeSetting || '默认') : (state.userVideoDecodeSetting || '默认');
     // 直播页：点击 UL 列表项
     if (state.isLivePage) {
-        const decodeList = document.querySelector(BILI.live.decodeList);
+        const decodeList = queryLiveDecodeList();
         if (!decodeList) {
             if (!decodeRetryExhausted()) {
                 scheduleDecodeRetry(retryCount);

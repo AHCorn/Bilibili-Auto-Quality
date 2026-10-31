@@ -191,9 +191,24 @@ function announceLiveDowngrade(resolution: LiveTarget) {
     session.announcedDowngradeQn = resolution.option.qn;
     console.log(`[直播画质] 本直播间没有「${resolution.downgradedFrom}」，已就近降到「${liveQualityLabel(resolution.option)}」(qn: ${resolution.option.qn})`);
 }
+export function getLivePlayer(): BiliLivePlayer | undefined {
+    try {
+        if (unsafeWindow.livePlayer) return unsafeWindow.livePlayer;
+        if (typeof document !== "undefined" && typeof document.querySelectorAll === "function") {
+            const frames = document.querySelectorAll<HTMLIFrameElement>('iframe[src*="/blanc/"], iframe');
+            for (const frame of Array.from(frames)) {
+                try {
+                    const lp = (frame.contentWindow as BiliWindow | null)?.livePlayer;
+                    if (lp) return lp;
+                } catch (e) { debugTransient(e); }
+            }
+        }
+    } catch (e) { debugTransient(e); }
+    return undefined;
+}
 export function liveFacadeInfo(): LiveFacadeInfoShape | null {
     try {
-        const lp = unsafeWindow.livePlayer;
+        const lp = getLivePlayer();
         if (lp && typeof lp.getPlayerInfo === "function") {
             const info = lp.getPlayerInfo();
             if (!info) return null;
@@ -221,11 +236,12 @@ function liveSwitchQuality(qn: number, options: { fromQn?: number; force?: boole
         return true;
     }
     try {
-        const lp = unsafeWindow.livePlayer;
+        const lp = getLivePlayer();
         if (lp && typeof lp.switchQuality === "function") {
             const seq = ++liveSwitchSeq;
             session.lastSwitch = { targetQn: qn, fromQn: options.fromQn, at: Date.now(), confirmed: false };
-            const result = lp.switchQuality(qn) as { catch?: (fn: (reason?: unknown) => void) => unknown } | null | undefined;
+            // room-player 内部按 String(code) === qn 与 typeof quality === "string" 严格匹配，必须传字符串
+            const result = lp.switchQuality(String(qn)) as { catch?: (fn: (reason?: unknown) => void) => unknown } | null | undefined;
             if (result && typeof result.catch === "function") {
                 result.catch((reason: unknown) => {
                     if (seq !== liveSwitchSeq) { debugTransient(reason); return; }
@@ -248,7 +264,7 @@ function liveNoteSwitchFailure(target: LiveQualityOption): boolean {
     }
     session.consecutiveFailures.delete(target.qn);
     session.blockedQns.add(target.qn);
-    console.warn(`[直播画质] 「${liveQualityLabel(target)}」连续 ${count} 次切不过去（付费直播、舰长专属、大会员专属档常见此现象），本直播间内不再尝试该档，改用可用的次高档；换直播间后重置`);
+    console.warn(`[直播画质] 「${liveQualityLabel(target)}」切换 ${count} 次后画质均未变化，本直播间内不再尝试该档，改用可用的次高档；换直播间后重置`);
     updatePollingStatusIndicator();
     return true;
 }
@@ -339,7 +355,7 @@ export async function selectLiveQuality() {
             const info = liveFacadeInfo();
             let switchable = false;
             try {
-                const lp = unsafeWindow.livePlayer;
+                const lp = getLivePlayer();
                 switchable = !!(lp && typeof lp.switchQuality === "function");
             } catch (e) { debugTransient(e); /* 实例重建瞬间可能抛错 */ }
             if (info && info.playurl && switchable) return finish("ready");
@@ -601,7 +617,7 @@ function bindDanmakuRestoreOnPagehide() {
 }
 function liveSetDanmakuDisplay(display: boolean) {
     try {
-        const lp = unsafeWindow.livePlayer;
+        const lp = getLivePlayer();
         if (lp && typeof lp.updateDMSetting === "function") {
             lp.updateDMSetting({ display });
             return true;
@@ -612,7 +628,7 @@ function liveSetDanmakuDisplay(display: boolean) {
 export function syncLiveDanmaku() {
     if (_danmakuSyncing) return;
     try {
-        const lp = unsafeWindow.livePlayer;
+        const lp = getLivePlayer();
         if (!lp?.getPlayerInfo || !lp?.updateDMSetting) return;
         if (!lp.getPlayerInfo()?.danmaku?.display) {
             if (_danmakuForcedOff && liveSetDanmakuDisplay(true)) {

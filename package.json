@@ -1,7 +1,7 @@
 {
   "name": "bilibili-auto-quality",
   "private": true,
-  "version": "7.0",
+  "version": "7.0.1",
   "description": "自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。",
   "type": "module",
   "scripts": {

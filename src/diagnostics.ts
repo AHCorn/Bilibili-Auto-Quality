@@ -2,6 +2,7 @@ import { BILI } from "./contract";
 import { SETTINGS, state, type AppState, type QualityFlowOutcome } from "./settings";
 import { taskQueue } from "./task-queue";
 import { adaptive } from "./adaptive";
+import { getLivePlayer } from "./live";
 import { pageWindowBridge, SCRIPT_ENV, scriptEnvLabel } from "./env";
 
 const DISCLOSABLE_URL_PARAMS = ["p", "bvid", "oid"];
@@ -39,6 +40,10 @@ function formatDeadline(timestamp: number, now: number): string {
 
 function readPageObject(name: string): Record<string, unknown> | null {
     try {
+        if (name === "livePlayer") {
+            const lp = getLivePlayer();
+            return lp && typeof lp === "object" ? lp as unknown as Record<string, unknown> : null;
+        }
         const value = (unsafeWindow as unknown as Record<string, unknown>)[name];
         return value && typeof value === "object" ? value as Record<string, unknown> : null;
     } catch (error) {
