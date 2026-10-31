@@ -265,15 +265,17 @@ export function applyUnlockEnvironment(): void {
         } else if (state.unlockUA) {
             const pointerType = detectPointerType();
             console.log(`[解锁设置] 设备检测结果: 鼠标=${pointerType.isMouseDevice}, 触控=${pointerType.isTouchDevice}`);
-            if (pointerType.isMouseDevice && !pointerType.isTouchDevice) {
+            // 主指针是鼠标就置 0：Safari/iPad UA 叠加 maxTouchPoints>0 会被页面当成 iPad，
+            // 触屏笔记本等混合设备同样会中招（播放器光标被隐藏、控制条需点击）
+            if (pointerType.isMouseDevice) {
                 if (!isLockedTo(unsafeWindow.navigator, 'maxTouchPoints', 0)) {
                     defineSpoof(unsafeWindow.navigator, 'maxTouchPoints', 0, true);
                 }
-                console.log("[解锁设置] 纯鼠标设备，已设置 maxTouchPoints 为 0");
+                console.log("[解锁设置] 主指针为鼠标，已设置 maxTouchPoints 为 0");
             } else {
                 const keepReason = !pointerType.detected
                     ? "设备检测失败"
-                    : (pointerType.isTouchDevice ? "检测到触控设备" : "无精确鼠标指针");
+                    : "无精确鼠标指针";
                 console.log(`[解锁设置] 保留 maxTouchPoints 原值: ${navigator.maxTouchPoints}，原因: ${keepReason}`);
             }
         }

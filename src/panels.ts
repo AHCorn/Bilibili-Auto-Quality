@@ -1105,7 +1105,7 @@ function createDevSettingsPanel(): HTMLElement {
           ${renderStepperGroup({ disabled: devLocked, inputId: "dev-double-check-delay", label: "验证等待时间", description: "验证前等待时长", value: state.devDoubleCheckDelay, min: 1000, max: 20000, step: 100, unit: "毫秒" })}
           <div class="baq-group-last">
             <div class="baq-section-title">播放器行为</div>
-            ${renderToggleRow({ inputId: "preserve-touch-points", label: "保留触控点", description: "保留 maxTouchPoints 原值（设备兼容，不依赖开发者模式）", checked: state.preserveTouchPoints, slider: "baq-c-amber" })}
+            ${renderToggleRow({ inputId: "preserve-touch-points", label: "保留触控点", description: "不修改 maxTouchPoints，保持设备原值", checked: state.preserveTouchPoints, slider: "baq-c-amber" })}
             ${renderToggleRow({ inputId: "disable-hdr", label: "禁用 HDR 和杜比视界", description: "选择两者以外的最高画质", checked: state.disableHDROption, disabled: devLocked, slider: "baq-c-amber" })}
             ${renderToggleRow({ inputId: "remove-quality-button", label: "移除清晰度按钮", description: "隐藏播放器原生清晰度按钮", checked: state.takeOverQualityControl, disabled: devLocked, slider: "baq-c-amber" })}
           </div>

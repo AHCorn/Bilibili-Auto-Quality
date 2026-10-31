@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩自动画质
 // @namespace    https://github.com/AHCorn/Bilibili-Auto-Quality/
-// @version      7.0.1
+// @version      7.0.2
 // @license      GPL-3.0
 // @description  自动解锁并更改哔哩哔哩视频的画质和音质及直播画质，实现自动选择最高画质、无损音频、杜比全景声。
 // @author       安和（AHCorn）
@@ -712,13 +712,13 @@
       } else if (state.unlockUA) {
         const pointerType = detectPointerType();
         console.log(`[解锁设置] 设备检测结果: 鼠标=${pointerType.isMouseDevice}, 触控=${pointerType.isTouchDevice}`);
-        if (pointerType.isMouseDevice && !pointerType.isTouchDevice) {
+        if (pointerType.isMouseDevice) {
           if (!isLockedTo(unsafeWindow.navigator, "maxTouchPoints", 0)) {
             defineSpoof(unsafeWindow.navigator, "maxTouchPoints", 0, true);
           }
-          console.log("[解锁设置] 纯鼠标设备，已设置 maxTouchPoints 为 0");
+          console.log("[解锁设置] 主指针为鼠标，已设置 maxTouchPoints 为 0");
         } else {
-          const keepReason = !pointerType.detected ? "设备检测失败" : pointerType.isTouchDevice ? "检测到触控设备" : "无精确鼠标指针";
+          const keepReason = !pointerType.detected ? "设备检测失败" : "无精确鼠标指针";
           console.log(`[解锁设置] 保留 maxTouchPoints 原值: ${navigator.maxTouchPoints}，原因: ${keepReason}`);
         }
       }
@@ -6069,7 +6069,7 @@
           ${renderStepperGroup({ disabled: devLocked, inputId: "dev-double-check-delay", label: "验证等待时间", description: "验证前等待时长", value: state.devDoubleCheckDelay, min: 1e3, max: 2e4, step: 100, unit: "毫秒" })}
           <div class="baq-group-last">
             <div class="baq-section-title">播放器行为</div>
-            ${renderToggleRow({ inputId: "preserve-touch-points", label: "保留触控点", description: "保留 maxTouchPoints 原值（设备兼容，不依赖开发者模式）", checked: state.preserveTouchPoints, slider: "baq-c-amber" })}
+            ${renderToggleRow({ inputId: "preserve-touch-points", label: "保留触控点", description: "不修改 maxTouchPoints，保持设备原值", checked: state.preserveTouchPoints, slider: "baq-c-amber" })}
             ${renderToggleRow({ inputId: "disable-hdr", label: "禁用 HDR 和杜比视界", description: "选择两者以外的最高画质", checked: state.disableHDROption, disabled: devLocked, slider: "baq-c-amber" })}
             ${renderToggleRow({ inputId: "remove-quality-button", label: "移除清晰度按钮", description: "隐藏播放器原生清晰度按钮", checked: state.takeOverQualityControl, disabled: devLocked, slider: "baq-c-amber" })}
           </div>
